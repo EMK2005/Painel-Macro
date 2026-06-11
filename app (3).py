@@ -768,8 +768,21 @@ with tabs[5]:
 # ABA 7: FLUXO B3
 # ─────────────────────────────────────────────────────────────────
 with tabs[6]:
-    st.info("📂 Faça upload do CSV de fluxo B3 (dadosdemercado.com.br/fluxo). "
-            "Colunas: Data, Estrangeiro, Institucional, Pessoa física, Inst. Financeira, Outros")
+    st.markdown(
+        '''<div style="background:rgba(56,189,248,.08);border:1px solid rgba(56,189,248,.25);
+        border-radius:10px;padding:14px 18px;margin-bottom:12px;font-size:13px;color:#94a3b8;line-height:1.7">
+        📂 <strong style="color:#e2e8f5">Como obter o arquivo:</strong><br>
+        1. Acesse
+        <a href="https://www.dadosdemercado.com.br/fluxo" target="_blank"
+           style="color:#38bdf8;font-weight:700">dadosdemercado.com.br/fluxo ↗</a>
+        e baixe o CSV de fluxo B3.<br>
+        2. O arquivo deve conter as colunas:
+        <span style="color:#e2e8f5">Data, Estrangeiro, Institucional, Pessoa física,
+        Inst. Financeira, Outros</span>.<br>
+        3. Faça o upload abaixo.
+        </div>''',
+        unsafe_allow_html=True
+    )
 
     uploaded = st.file_uploader("Selecione o CSV", type="csv", label_visibility="collapsed")
 
