@@ -1183,16 +1183,42 @@ with tabs[8]:
         info = yf_info(sel_ticker)
         # Métricas rápidas
         m1, m2, m3, m4, m5 = st.columns(5)
-        metrics = [
-            ("Preço atual",  f"R$ {info['price']:,.2f}" if info else "—"),
-            ("Var. dia",     f"{info['chg']:+.2f}%" if info else "—"),
-            ("Var. 1M",      f"{info['chg_1m']:+.2f}%" if info and info.get('chg_1m') else "—"),
-            ("Var. ano",     f"{info['chg_ytd']:+.2f}%" if info else "—"),
-            ("Máx 52s",      f"R$ {info['hi52']:,.2f}" if info else "—"),
-        ]
-        for col, (label, val) in zip([m1,m2,m3,m4,m5], metrics):
-            with col:
-                st.metric(label, val)
+
+        def metric_card(label, value, is_pct=False, raw_val=None):
+            if is_pct and raw_val is not None:
+                cor = "#4ade80" if raw_val >= 0 else "#f87171"
+                arrow = "▲" if raw_val >= 0 else "▼"
+            else:
+                cor = "#e2e8f5"
+                arrow = ""
+            st.markdown(
+                f'<div style="background:#0f2044;border:1px solid #1e3a6e;'+
+                f'border-radius:8px;padding:12px 14px">'+
+                f'<div style="font-size:11px;color:#64748b;font-weight:600;'+
+                f'text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">'+
+                f'{label}</div>'+
+                f'<div style="font-size:22px;font-weight:800;color:{cor};'+
+                f'letter-spacing:-.02em">{arrow} {value}</div>'+
+                f'</div>',
+                unsafe_allow_html=True
+            )
+
+        with m1:
+            metric_card("Preço atual", f"R$ {info['price']:,.2f}" if info else "—")
+        with m2:
+            v = info['chg'] if info else None
+            metric_card("Var. dia", f"{v:+.2f}%" if v is not None else "—",
+                        is_pct=True, raw_val=v)
+        with m3:
+            v = info.get('chg_1m') if info else None
+            metric_card("Var. 1M", f"{v:+.2f}%" if v is not None else "—",
+                        is_pct=True, raw_val=v)
+        with m4:
+            v = info['chg_ytd'] if info else None
+            metric_card("Var. ano", f"{v:+.2f}%" if v is not None else "—",
+                        is_pct=True, raw_val=v)
+        with m5:
+            metric_card("Máx 52s", f"R$ {info['hi52']:,.2f}" if info else "—")
 
         # Gráfico de preço — verde se subindo, vermelho se caindo
         info_sel  = yf_info(sel_ticker)
