@@ -854,6 +854,123 @@ with tabs[6]:
             mF_x, mF_y = group_monthly(dates, fin)
             mO_x, mO_y = group_monthly(dates, outros)
 
+            # ── Resumo por investidor: Ano, Mês atual e histórico 2026 ──
+            from datetime import date as _date
+            ano_atual = str(_date.today().year)
+            mes_atual = _date.today().strftime("%Y-%m")
+            mes_atual_label = _date.today().strftime("%B/%Y").capitalize()
+
+            TIPOS = [
+                ("Estrangeiro",      estrang, "rgba(56,189,248,.85)",  "#38bdf8"),
+                ("Institucional",    inst,    "rgba(74,222,128,.85)",  "#4ade80"),
+                ("Pessoa Física",    pf,      "rgba(192,132,252,.85)", "#c084fc"),
+                ("Inst. Financeira", fin,     "rgba(251,191,36,.85)",  "#fbbf24"),
+                ("Outros",           outros,  "rgba(45,212,191,.85)",  "#2dd4bf"),
+            ]
+
+            def soma_periodo(ds, vs, prefixo):
+                return sum(v for d, v in zip(ds, vs) if d.startswith(prefixo))
+
+            # ── Cards: Acumulado no Ano ───────────────────────────
+            st.markdown(
+                f'<div style="font-size:13px;font-weight:700;color:#38bdf8;'+
+                f'text-transform:uppercase;letter-spacing:.07em;margin:8px 0 10px">'+
+                f'📅 Acumulado no ano ({ano_atual})</div>',
+                unsafe_allow_html=True)
+
+            cols_ano = st.columns(5)
+            for col, (nome, vals, _, cor) in zip(cols_ano, TIPOS):
+                s = soma_periodo(dates, vals, ano_atual)
+                cor_val = "#4ade80" if s >= 0 else "#f87171"
+                arrow   = "▲" if s >= 0 else "▼"
+                with col:
+                    st.markdown(
+                        f'<div style="background:#0f2044;border:1px solid #1e3a6e;'+
+                        f'border-top:3px solid {cor};border-radius:10px;'+
+                        f'padding:12px 14px;margin-bottom:10px">'+
+                        f'<div style="font-size:10px;color:#64748b;font-weight:700;'+
+                        f'text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">'+
+                        f'{nome}</div>'+
+                        f'<div style="font-size:18px;font-weight:800;color:{cor_val};'+
+                        f'letter-spacing:-.02em">{arrow} R$ {abs(s):,.1f}M</div>'+
+                        f'</div>',
+                        unsafe_allow_html=True)
+
+            # ── Cards: Acumulado no Mês atual ─────────────────────
+            st.markdown(
+                f'<div style="font-size:13px;font-weight:700;color:#38bdf8;'+
+                f'text-transform:uppercase;letter-spacing:.07em;margin:4px 0 10px">'+
+                f'📆 Acumulado no mês ({mes_atual_label})</div>',
+                unsafe_allow_html=True)
+
+            cols_mes = st.columns(5)
+            for col, (nome, vals, _, cor) in zip(cols_mes, TIPOS):
+                s = soma_periodo(dates, vals, mes_atual)
+                cor_val = "#4ade80" if s >= 0 else "#f87171"
+                arrow   = "▲" if s >= 0 else "▼"
+                with col:
+                    st.markdown(
+                        f'<div style="background:#0f2044;border:1px solid #1e3a6e;'+
+                        f'border-top:3px solid {cor};border-radius:10px;'+
+                        f'padding:12px 14px;margin-bottom:10px">'+
+                        f'<div style="font-size:10px;color:#64748b;font-weight:700;'+
+                        f'text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">'+
+                        f'{nome}</div>'+
+                        f'<div style="font-size:18px;font-weight:800;color:{cor_val};'+
+                        f'letter-spacing:-.02em">{arrow} R$ {abs(s):,.1f}M</div>'+
+                        f'</div>',
+                        unsafe_allow_html=True)
+
+            # ── Tabela mensal de 2026 ─────────────────────────────
+            st.markdown(
+                '<div style="font-size:13px;font-weight:700;color:#38bdf8;'+
+                'text-transform:uppercase;letter-spacing:.07em;margin:4px 0 10px">'+
+                '📊 Histórico mensal — 2026 (R$ milhões)</div>',
+                unsafe_allow_html=True)
+
+            # Obter todos os meses de 2026 presentes no CSV
+            meses_2026 = sorted(set(d[:7] for d in dates if d.startswith(ano_atual)))
+
+            if meses_2026:
+                tbl_mensal = []
+                for mes in meses_2026:
+                    import calendar, locale
+                    try:
+                        y, m = int(mes[:4]), int(mes[5:])
+                        nome_mes = calendar.month_abbr[m].capitalize() + f"/{y}"
+                    except Exception:
+                        nome_mes = mes
+                    row = {"Mês": nome_mes}
+                    total = 0
+                    for nome_tipo, vals, _, _ in TIPOS:
+                        s = soma_periodo(dates, vals, mes)
+                        total += s
+                        row[nome_tipo] = f"{'▲' if s>=0 else '▼'} {abs(s):,.1f}"
+                    row["Total"] = f"{'▲' if total>=0 else '▼'} {abs(total):,.1f}"
+                    tbl_mensal.append(row)
+                render_table(tbl_mensal)
+
+                # Gráfico de barras empilhadas — acumulado mensal 2026
+                st.markdown("**Fluxo acumulado por mês — 2026**")
+                fig_2026 = mk_fig(height=280, barmode="relative",
+                                   xaxis=xax(type="category"),
+                                   yaxis=yax(ticksuffix=" M", zeroline=True,
+                                             zerolinecolor="#374151", zerolinewidth=2))
+                cores_tipo = [
+                    ("Estrangeiro",      estrang, "rgba(56,189,248,.85)"),
+                    ("Institucional",    inst,    "rgba(74,222,128,.85)"),
+                    ("Pessoa Física",    pf,      "rgba(192,132,252,.85)"),
+                    ("Inst. Financeira", fin,     "rgba(251,191,36,.85)"),
+                    ("Outros",           outros,  "rgba(45,212,191,.85)"),
+                ]
+                for nome_tipo, vals, cor_rgba in cores_tipo:
+                    ys_2026 = [soma_periodo(dates, vals, m) for m in meses_2026]
+                    fig_2026.add_trace(go.Bar(x=meses_2026, y=ys_2026,
+                                              name=nome_tipo, marker_color=cor_rgba))
+                st.plotly_chart(fig_2026, use_container_width=True, config=PLOTLY_CFG)
+
+            st.markdown("---")
+
             c1, c2 = st.columns(2)
             with c1:
                 fig = mk_fig(height=340, barmode="relative",
