@@ -293,28 +293,47 @@ Seja direto e profissional. Ao final, adicione uma linha: *Esta análise é educ
 
 @st.cache_data(ttl=300, show_spinner=False)
 def get_noticias():
+    import re as _re
     feeds = [
-        ("InfoMoney",       "https://www.infomoney.com.br/feed/"),
-        ("Valor Econômico", "https://valor.globo.com/rss/todosostemas"),
-        ("Reuters BR",      "https://feeds.reuters.com/reuters/BRbusinessNews"),
-        ("Exame",           "https://exame.com/feed/"),
+        ("Valor Econômico", "https://valor.globo.com/rss/todosostemas",         8),
+        ("InfoMoney",       "https://www.infomoney.com.br/feed/",               6),
+        ("Exame",           "https://exame.com/feed/",                          5),
+        ("Reuters",         "https://feeds.reuters.com/reuters/businessNews",   8),
+        ("CNN Business",    "http://rss.cnn.com/rss/money_latest.rss",          6),
+        ("BBC Business",    "https://feeds.bbci.co.uk/news/business/rss.xml",   5),
+        ("BBC World",       "https://feeds.bbci.co.uk/news/world/rss.xml",      5),
+        ("Reuters World",   "https://feeds.reuters.com/reuters/worldNews",       5),
     ]
+    KEYWORDS = {
+        "economia","mercado","bolsa","juros","inflação","inflacao","pib",
+        "banco central","fed","dólar","dolar","petróleo","petroleo","commodit",
+        "trade","war","guerra","tariff","tarifa","sanção","sancao","geopolit",
+        "nato","otan","china","eua","europa","rússia","russia","oriente",
+        "eleição","eleicao","governo","política","politica","crise","recessão",
+        "recessao","emprego","desemprego","fiscal","dívida","divida","reforma",
+        "gdp","growth","recession","rate","interest","oil","gold","ouro",
+        "crypto","bitcoin","tech","ia","inteligência","nuclear","conflito",
+    }
+    def relevant(title, desc):
+        text = (title + " " + desc).lower()
+        return any(k in text for k in KEYWORDS)
+
     items = []
-    for source, url in feeds:
+    intl = {"Reuters","CNN Business","BBC Business","BBC World","Reuters World"}
+    for source, url, mx in feeds:
         try:
             feed = feedparser.parse(url)
-            for e in feed.entries[:6]:
-                desc = getattr(e, "summary", "") or ""
-                # strip HTML tags
-                import re
-                desc = re.sub(r"<[^>]+>", "", desc)[:180]
-                items.append({
-                    "source": source,
-                    "title":  e.get("title", ""),
-                    "link":   e.get("link", "#"),
-                    "desc":   desc,
-                    "date":   e.get("published", ""),
-                })
+            count = 0
+            for e in feed.entries:
+                if count >= mx: break
+                title = e.get("title","")
+                desc  = _re.sub(r"<[^>]+>","", getattr(e,"summary","") or "")[:200]
+                if source in intl and not relevant(title, desc):
+                    continue
+                items.append({"source":source,"title":title,
+                              "link":e.get("link","#"),"desc":desc,
+                              "date":e.get("published","")})
+                count += 1
         except:
             pass
     return items
@@ -720,40 +739,24 @@ with tabs[4]:
 with tabs[5]:
     ipca = bcb_sgs(13522); igpm = bcb_sgs(189); cpi = get_cpi()
 
-    # IPCA 12m rolling
-    d_ipca12 = None
-    if ipca is not None and len(ipca) >= 12:
-        vals = ipca["valor"].values
-        a12v, a12d = [], []
-        for i in range(11, len(vals)):
-            a12v.append(round(((1 + vals[i-11:i+1]/100).prod()-1)*100, 2))
-            a12d.append(ipca["data"].iloc[i])
-        d_ipca12 = pd.DataFrame({"data": a12d, "valor": a12v})
+    # IPCA mensal — largura total (maior)
+    fig = mk_fig(height=360, yaxis=yax(ticksuffix="%"))
+    if ipca is not None:
+        colors = [COLORS["red"] if v > 0 else COLORS["green"] for v in ipca["valor"]]
+        fig.add_trace(go.Bar(x=ipca["data"], y=ipca["valor"],
+                             name="IPCA mensal", marker_color=colors))
+    st.markdown("**IPCA mensal — Brasil**")
+    st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CFG)
 
     c1, c2 = st.columns(2)
     with c1:
-        fig = mk_fig(height=260, yaxis=yax(ticksuffix="%"))
-        if d_ipca12 is not None:
-            fig.add_trace(go.Scatter(x=d_ipca12["data"], y=d_ipca12["valor"], name="IPCA 12m",
-                mode="lines", fill="tozeroy", line=dict(color=COLORS["red"], width=2),
-                fillcolor="rgba(248,113,113,0.08)"))
-        st.markdown("**IPCA acumulado 12 meses**"); st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CFG)
-    with c2:
-        fig = mk_fig(height=260, yaxis=yax(ticksuffix="%"))
-        if ipca is not None:
-            colors = [COLORS["red"] if v > 0 else COLORS["green"] for v in ipca["valor"]]
-            fig.add_trace(go.Bar(x=ipca["data"], y=ipca["valor"], name="IPCA mensal", marker_color=colors))
-        st.markdown("**IPCA mensal**"); st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CFG)
-
-    c1, c2 = st.columns(2)
-    with c1:
-        fig = mk_fig(height=260, yaxis=yax(ticksuffix="%"))
+        fig = mk_fig(height=280, yaxis=yax(ticksuffix="%"))
         if igpm is not None:
             colors = [COLORS["amber"] if v > 0 else COLORS["teal"] for v in igpm["valor"]]
             fig.add_trace(go.Bar(x=igpm["data"], y=igpm["valor"], name="IGP-M mensal", marker_color=colors))
         st.markdown("**IGP-M mensal**"); st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CFG)
     with c2:
-        fig = mk_fig(height=260, yaxis=yax(ticksuffix="%"))
+        fig = mk_fig(height=280, yaxis=yax(ticksuffix="%"))
         if cpi is not None:
             colors = [COLORS["red"] if v > 3 else COLORS["amber"] if v > 2 else COLORS["green"] for v in cpi["valor"]]
             fig.add_trace(go.Bar(x=cpi["data"], y=cpi["valor"], name="CPI YoY %", marker_color=colors))
@@ -1191,15 +1194,20 @@ with tabs[8]:
             with col:
                 st.metric(label, val)
 
-        # Gráfico de preço
+        # Gráfico de preço — verde se subindo, vermelho se caindo
+        info_sel  = yf_info(sel_ticker)
+        chg_hoje  = info_sel.get("chg", 0) if info_sel else 0
+        chart_cor = COLORS["green"] if chg_hoje >= 0 else COLORS["red"]
+        chart_fill= "rgba(74,222,128,0.08)" if chg_hoje >= 0 else "rgba(248,113,113,0.08)"
+
         fig = mk_fig(height=380,
                      yaxis=yax(tickprefix="R$ ", tickformat=",.2f"),
                      xaxis=xax())
         fig.add_trace(go.Scatter(
             x=df_sel.index, y=df_sel["Close"],
             name=sel_nome, mode="lines",
-            line=dict(color=sel_cor, width=2.5),
-            fill="tozeroy", fillcolor=fill_color(sel_cor),
+            line=dict(color=chart_cor, width=2.5),
+            fill="tozeroy", fillcolor=chart_fill,
             hovertemplate="R$ %{y:,.2f}<extra></extra>"
         ))
         # Média móvel 200 dias
