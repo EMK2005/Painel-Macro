@@ -160,24 +160,63 @@ def yf_hist(symbol, start="2020-01-01"):
     except:
         return None
 
-@st.cache_data(ttl=1800, show_spinner=False)
+@st.cache_data(ttl=120, show_spinner=False)
 def yf_info(symbol):
-    df = yf_hist(symbol)
-    if df is None or df.empty: return {}
-    c = df["Close"].dropna()
-    p = float(c.iloc[-1])
-    pr = float(c.iloc[-2]) if len(c) > 1 else p
-    chg = (p - pr) / pr * 100
-    p1m  = float(c.iloc[-22])  if len(c) >= 22  else None
-    p_ytd = float(df[df.index.year == datetime.today().year]["Close"].iloc[0]) \
-            if not df[df.index.year == datetime.today().year].empty else float(c.iloc[0])
-    return {
-        "price": p, "chg": chg, "prev": pr,
-        "chg_1m":  (p / p1m  - 1) * 100 if p1m  else None,
-        "chg_ytd": (p / p_ytd - 1) * 100,
-        "hi52": float(c.tail(252).max()),
-        "lo52": float(c.tail(252).min()),
-    }
+    """
+    Busca preço em tempo real via fast_info (cotação atual do pregão)
+    + histórico para calcular variações e 52s hi/lo.
+    Cache de 2 minutos para refletir o mercado ao vivo.
+    """
+    try:
+        tk = yf.Ticker(symbol)
+
+        # fast_info traz o preço atual do pregão (não só fechamento)
+        fi = tk.fast_info
+        p  = _safe(fi.last_price) or _safe(fi.regular_market_price)
+        pr = _safe(fi.previous_close)
+
+        # Fallback: se fast_info não retornar, usar histórico
+        if not p:
+            df = yf_hist(symbol)
+            if df is None or df.empty: return {}
+            c  = df["Close"].dropna()
+            p  = float(c.iloc[-1])
+            pr = float(c.iloc[-2]) if len(c) > 1 else p
+
+        if not pr or pr == 0:
+            df = yf_hist(symbol)
+            if df is not None and not df.empty:
+                pr = float(df["Close"].dropna().iloc[-2])
+
+        chg = (p - pr) / pr * 100 if pr else 0
+
+        # Histórico para variações e 52s (cache longo, não muda com frequência)
+        df = yf_hist(symbol)
+        if df is None or df.empty:
+            return {"price": p, "chg": chg, "prev": pr,
+                    "chg_1m": None, "chg_ytd": None,
+                    "hi52": None, "lo52": None}
+
+        c = df["Close"].dropna()
+
+        # Variação 1 mês
+        p1m = float(c.iloc[-22]) if len(c) >= 22 else None
+
+        # Variação no ano (YTD) — primeiro fechamento do ano atual
+        df_ytd = df[df.index.year == datetime.today().year]
+        p_ytd  = float(df_ytd["Close"].iloc[0]) if not df_ytd.empty else float(c.iloc[0])
+
+        return {
+            "price":    p,
+            "chg":      chg,
+            "prev":     pr,
+            "chg_1m":   (p / p1m  - 1) * 100 if p1m  else None,
+            "chg_ytd":  (p / p_ytd - 1) * 100 if p_ytd else None,
+            "hi52":     float(c.tail(252).max()),
+            "lo52":     float(c.tail(252).min()),
+        }
+    except Exception:
+        return {}
 
 @st.cache_data(ttl=1800, show_spinner=False)
 def get_cpi():
