@@ -250,7 +250,7 @@ def gerar_analise(ticker, nome, info):
         lo52    = f"R$ {info['lo52']:,.2f}"     if info else "indisponível"
 
         prompt = f"""Você é um analista de investimentos experiente focado no mercado brasileiro.
-Gere uma análise concisa e objetiva sobre a ação {ticker} ({nome}) com base nos dados abaixo e no seu conhecimento.
+Gere uma análise sobre a ação {ticker} ({nome}) com base nos dados abaixo.
 
 DADOS ATUAIS DE MERCADO:
 - Preço atual: {preco}
@@ -260,29 +260,27 @@ DADOS ATUAIS DE MERCADO:
 - Máxima 52 semanas: {hi52}
 - Mínima 52 semanas: {lo52}
 
-Estruture a análise com estas seções (use markdown com negrito e emojis):
+Retorne SOMENTE um JSON válido, sem nenhum texto antes ou depois, com exatamente esta estrutura:
+{{
+  "momento_acao": "texto da análise técnica e de preço (2-3 frases)",
+  "momento_empresa": "texto sobre fundamentos e posição competitiva (2-3 frases)",
+  "momento_setor": "texto sobre contexto do setor no Brasil (2-3 frases)",
+  "riscos": ["risco 1", "risco 2", "risco 3"],
+  "potencial": "texto sobre catalisadores e perspectivas (2-3 frases)",
+  "precos_alvo": [
+    {{"casa": "Nome da casa de análise", "preco": "R$ XX,XX", "recomendacao": "Compra/Neutro/Venda"}},
+    {{"casa": "Nome da casa de análise", "preco": "R$ XX,XX", "recomendacao": "Compra/Neutro/Venda"}},
+    {{"casa": "Nome da casa de análise", "preco": "R$ XX,XX", "recomendacao": "Compra/Neutro/Venda"}}
+  ]
+}}
 
-**📊 Momento da Ação**
-Análise técnica e de preço baseada nos dados acima (2-3 linhas).
-
-**🏢 Momento da Empresa**
-Fundamentos recentes, resultados e posição competitiva (2-3 linhas).
-
-**🏭 Momento do Setor**
-Contexto do setor no Brasil e perspectivas (2-3 linhas).
-
-**⚠️ Principais Riscos**
-Lista com 3 riscos relevantes.
-
-**🚀 Potencial de Crescimento**
-Catalisadores e perspectivas segundo analistas (2-3 linhas).
-
-Seja direto e profissional. Ao final, adicione uma linha: *Esta análise é educacional e não constitui recomendação de investimento.*"""
+Use casas de análise brasileiras reais (XP, BTG, Itaú BBA, Bradesco BBI, Safra, Goldman Sachs Brasil, Morgan Stanley).
+Se não souber o preço-alvo exato, estime com base no contexto de mercado e indique que é estimativa."""
 
         client = anthropic.Anthropic(api_key=api_key)
         message = client.messages.create(
             model="claude-sonnet-4-5",
-            max_tokens=800,
+            max_tokens=1000,
             messages=[{"role": "user", "content": prompt}]
         )
         return message.content[0].text
@@ -1265,19 +1263,109 @@ with tabs[8]:
         cor_sel    = next((c for t,_,c in ACOES_B3 if t == ticker_sel), COLORS["blue"])
         texto      = st.session_state.analise_texto.get(ticker_sel, "")
 
+        # Cabeçalho do painel
         st.markdown(
             f'<div style="background:linear-gradient(135deg,#0f2044,#0d1a38);'+
             f'border:1px solid {cor_sel}44;border-left:4px solid {cor_sel};'+
-            f'border-radius:12px;padding:20px 24px;margin:16px 0">'+
-            f'<div style="display:flex;align-items:center;justify-content:space-between;'+
-            f'margin-bottom:4px">'+
+            f'border-radius:12px 12px 0 0;padding:16px 24px 12px">'+
+            f'<div style="display:flex;align-items:center;justify-content:space-between">'+
             f'<h4 style="color:{cor_sel};margin:0;font-size:15px">🤖 Análise IA — '+
             f'{ticker_sel.replace(".SA","")} · {nome_sel}</h4>'+
             f'<span style="font-size:11px;color:#4a5568">⚠️ Não é recomendação de investimento</span>'+
             f'</div></div>',
             unsafe_allow_html=True
         )
-        st.markdown(texto)
+
+        # Tentar parsear JSON; se falhar, exibir texto bruto
+        import json as _json
+        try:
+            # Limpar possíveis marcadores de código
+            texto_limpo = texto.strip()
+            if texto_limpo.startswith("```"):
+                texto_limpo = texto_limpo.split("\n", 1)[1]
+            if texto_limpo.endswith("```"):
+                texto_limpo = texto_limpo.rsplit("\n", 1)[0]
+            texto_limpo = texto_limpo.strip()
+            dados = _json.loads(texto_limpo)
+
+            SECOES = [
+                ("📊 Momento da Ação",      dados.get("momento_acao","")),
+                ("🏢 Momento da Empresa",    dados.get("momento_empresa","")),
+                ("🏭 Momento do Setor",      dados.get("momento_setor","")),
+                ("🚀 Potencial de Crescimento", dados.get("potencial","")),
+            ]
+            riscos     = dados.get("riscos", [])
+            precos_alvo= dados.get("precos_alvo", [])
+
+            # Container do conteúdo
+            cont = f'<div style="background:#0a1628;border:1px solid {cor_sel}44;'+\
+                   f'border-top:0;border-radius:0 0 12px 12px;padding:20px 24px">'
+
+            # Seções de texto
+            for titulo, conteudo in SECOES:
+                if conteudo:
+                    cont += (
+                        f'<div style="margin-bottom:16px">'+
+                        f'<div style="font-size:13px;font-weight:700;color:{cor_sel};'+
+                        f'margin-bottom:6px">{titulo}</div>'+
+                        f'<div style="font-size:13px;color:#cbd5e1;line-height:1.7">{conteudo}</div>'+
+                        f'</div>'
+                    )
+
+            # Riscos
+            if riscos:
+                riscos_html = "".join(
+                    f'<div style="display:flex;gap:8px;margin-bottom:5px">'+
+                    f'<span style="color:#f87171;flex-shrink:0">⚠</span>'+
+                    f'<span style="font-size:13px;color:#cbd5e1">{r}</span></div>'
+                    for r in riscos
+                )
+                cont += (
+                    f'<div style="margin-bottom:16px">'+
+                    f'<div style="font-size:13px;font-weight:700;color:{cor_sel};'+
+                    f'margin-bottom:8px">⚠️ Principais Riscos</div>'+
+                    f'{riscos_html}</div>'
+                )
+
+            # Preços-alvo em destaque
+            if precos_alvo:
+                cards_pa = ""
+                rec_cores = {"Compra":"#4ade80","Neutro":"#fbbf24","Venda":"#f87171"}
+                for pa in precos_alvo:
+                    rec = pa.get("recomendacao","")
+                    rec_cor = rec_cores.get(rec, "#94a3b8")
+                    cards_pa += (
+                        f'<div style="background:#0f2044;border:1px solid {cor_sel}33;'+
+                        f'border-radius:8px;padding:12px 16px;text-align:center">'+
+                        f'<div style="font-size:11px;color:#64748b;font-weight:700;'+
+                        f'text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">'+
+                        f'{pa.get("casa","")}</div>'+
+                        f'<div style="font-size:20px;font-weight:800;color:#e2e8f5;'+
+                        f'margin-bottom:4px">{pa.get("preco","")}</div>'+
+                        f'<div style="font-size:12px;font-weight:700;color:{rec_cor};'+
+                        f'background:{rec_cor}18;padding:2px 10px;border-radius:20px;'+
+                        f'display:inline-block">{rec}</div>'+
+                        f'</div>'
+                    )
+                cont += (
+                    f'<div style="margin-bottom:8px">'+
+                    f'<div style="font-size:13px;font-weight:700;color:{cor_sel};'+
+                    f'margin-bottom:10px">🎯 Preços-Alvo — Casas de Análise</div>'+
+                    f'<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">'+
+                    f'{cards_pa}</div></div>'
+                )
+
+            cont += '</div>'
+            st.markdown(cont, unsafe_allow_html=True)
+
+        except Exception:
+            # Fallback: exibir texto bruto se JSON falhar
+            st.markdown(
+                f'<div style="background:#0a1628;border:1px solid {cor_sel}44;'+
+                f'border-top:0;border-radius:0 0 12px 12px;padding:20px 24px;'+
+                f'font-size:13px;color:#cbd5e1;line-height:1.7">{texto}</div>',
+                unsafe_allow_html=True
+            )
 
         col_nova, col_fechar = st.columns([1, 4])
         with col_nova:
