@@ -589,11 +589,14 @@ with tabs[0]:
         if t10 is not None: fig.add_trace(go.Scatter(x=t10.index,  y=t10["Close"], name="T-10Y EUA", mode="lines", line=dict(color=COLORS["blue"], width=2, dash="dash")))
         st.markdown("**Selic vs Treasury 10Y**"); st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CFG)
     with c2:
-        ouro = yf_hist("GC=F"); wti = yf_hist("CL=F")
-        fig = mk_fig(height=260)
-        if ouro is not None: fig.add_trace(go.Scatter(x=ouro.index, y=ouro["Close"], name="Ouro", mode="lines", line=dict(color=COLORS["amber"], width=2)))
-        if wti  is not None: fig.add_trace(go.Scatter(x=wti.index,  y=wti["Close"],  name="WTI",  mode="lines", line=dict(color=COLORS["slate"], width=2, dash="dash")))
-        st.markdown("**Ouro e Petróleo WTI**"); st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CFG)
+        ouro = yf_hist("GC=F")
+        fig = mk_fig(height=260, yaxis=yax(tickprefix="US$ ", tickformat=",.0f"))
+        if ouro is not None:
+            fig.add_trace(go.Scatter(x=ouro.index, y=ouro["Close"], name="Ouro",
+                mode="lines", fill="tozeroy",
+                line=dict(color=COLORS["amber"], width=2),
+                fillcolor="rgba(251,191,36,0.08)"))
+        st.markdown("**Ouro (US$/oz)**"); st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CFG)
 
 # ─────────────────────────────────────────────────────────────────
 # ABA 2: BOLSA
@@ -601,14 +604,30 @@ with tabs[0]:
 with tabs[1]:
     c1, c2 = st.columns(2)
     with c1:
-        ibovB = b100(yf_hist("^BVSP"))
-        spB   = b100(yf_hist("^GSPC"))
-        ndxB  = b100(yf_hist("^NDX"))
-        fig = mk_fig(height=340)
-        if ibovB is not None: fig.add_trace(go.Scatter(x=ibovB.index, y=ibovB, name="IBOVESPA", mode="lines", line=dict(color=COLORS["blue"],   width=2)))
-        if spB   is not None: fig.add_trace(go.Scatter(x=spB.index,   y=spB,   name="S&P 500",  mode="lines", line=dict(color=COLORS["green"],  width=2, dash="dash")))
-        if ndxB  is not None: fig.add_trace(go.Scatter(x=ndxB.index,  y=ndxB,  name="Nasdaq",   mode="lines", line=dict(color=COLORS["purple"], width=2, dash="dot")))
-        st.markdown("**Base 100**"); st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CFG)
+        ibov_df = yf_hist("^BVSP")
+        if ibov_df is not None and not ibov_df.empty:
+            # Gráfico de preço com eixo duplo para volume
+            fig = mk_fig(height=340,
+                         yaxis=yax(tickformat=",.0f", title=dict(text="Pontos")),
+                         yaxis2=dict(overlaying="y", side="right", showgrid=False,
+                                     tickformat=".2s", tickfont=dict(size=9, color="#64748b"),
+                                     title=dict(text="Volume", font=dict(size=10))),
+                         barmode="overlay")
+            fig.add_trace(go.Bar(
+                x=ibov_df.index, y=ibov_df["Volume"],
+                name="Volume", yaxis="y2",
+                marker_color="rgba(56,189,248,0.15)", showlegend=True
+            ))
+            fig.add_trace(go.Scatter(
+                x=ibov_df.index, y=ibov_df["Close"],
+                name="IBOVESPA", mode="lines", yaxis="y",
+                line=dict(color=COLORS["blue"], width=2),
+                hovertemplate="%{y:,.0f} pts<extra>IBOV</extra>"
+            ))
+            st.markdown("**IBOVESPA + Volume**")
+            st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CFG)
+        else:
+            st.info("Dados do IBOVESPA indisponíveis")
     with c2:
         vix = yf_hist("^VIX")
         fig = mk_fig(height=340)
@@ -683,7 +702,9 @@ with tabs[3]:
             df = yf_hist(sym)
             fig = mk_fig(height=250)
             if df is not None:
-                fig.add_trace(go.Scatter(x=df.index, y=df["Close"], name=nome, mode="lines",
+                # Filtrar valores negativos ou zero (dados incorretos)
+                df_clean = df[df["Close"] > 0].copy()
+                fig.add_trace(go.Scatter(x=df_clean.index, y=df_clean["Close"], name=nome, mode="lines",
                     fill="tozeroy", line=dict(color=cor, width=2), fillcolor=fill_color(cor)))
             st.markdown(f"**{nome}**"); st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CFG)
 
@@ -766,7 +787,7 @@ with tabs[5]:
         colors = [COLORS["red"] if v > 0 else COLORS["green"] for v in ipca["valor"]]
         fig.add_trace(go.Bar(x=ipca["data"], y=ipca["valor"],
                              name="IPCA mensal", marker_color=colors))
-    st.markdown("**IPCA mensal — Brasil**")
+    st.markdown("**IPCA YoY — Brasil**")
     st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CFG)
 
     c1, c2 = st.columns(2)
@@ -991,11 +1012,11 @@ with tabs[6]:
                                    yaxis=yax(ticksuffix=" M", zeroline=True,
                                              zerolinecolor="#374151", zerolinewidth=2))
                 cores_tipo = [
-                    ("Estrangeiro",      estrang, "rgba(56,189,248,.85)"),
-                    ("Institucional",    inst,    "rgba(74,222,128,.85)"),
-                    ("Pessoa Física",    pf,      "rgba(192,132,252,.85)"),
-                    ("Inst. Financeira", fin,     "rgba(251,191,36,.85)"),
-                    ("Outros",           outros,  "rgba(45,212,191,.85)"),
+                    ("Estrangeiro",      estrang, "rgba(56,189,248,.9)"),
+                    ("Institucional",    inst,    "rgba(250,100,100,.9)"),
+                    ("Pessoa Física",    pf,      "rgba(250,204,21,.9)"),
+                    ("Inst. Financeira", fin,     "rgba(167,243,208,.9)"),
+                    ("Outros",           outros,  "rgba(192,132,252,.9)"),
                 ]
                 for nome_tipo, vals, cor_rgba in cores_tipo:
                     ys_2026 = [soma_periodo(dates, vals, m) for m in meses_2026]
@@ -1012,11 +1033,11 @@ with tabs[6]:
                              yaxis=yax(ticksuffix=" M", zeroline=True,
                                         zerolinecolor="#374151", zerolinewidth=2,
                                         title=dict(text="R$ milhões")))
-                fig.add_trace(go.Bar(x=mE_x, y=mE_y, name="Estrangeiro",     marker_color="rgba(56,189,248,.85)"))
-                fig.add_trace(go.Bar(x=mI_x, y=mI_y, name="Institucional",   marker_color="rgba(74,222,128,.85)"))
-                fig.add_trace(go.Bar(x=mP_x, y=mP_y, name="Pessoa Física",   marker_color="rgba(192,132,252,.85)"))
-                fig.add_trace(go.Bar(x=mF_x, y=mF_y, name="Inst. Financeira",marker_color="rgba(251,191,36,.85)"))
-                fig.add_trace(go.Bar(x=mO_x, y=mO_y, name="Outros",          marker_color="rgba(45,212,191,.85)"))
+                fig.add_trace(go.Bar(x=mE_x, y=mE_y, name="Estrangeiro",     marker_color="rgba(56,189,248,.9)"))
+                fig.add_trace(go.Bar(x=mI_x, y=mI_y, name="Institucional",   marker_color="rgba(250,100,100,.9)"))
+                fig.add_trace(go.Bar(x=mP_x, y=mP_y, name="Pessoa Física",   marker_color="rgba(250,204,21,.9)"))
+                fig.add_trace(go.Bar(x=mF_x, y=mF_y, name="Inst. Financeira",marker_color="rgba(167,243,208,.9)"))
+                fig.add_trace(go.Bar(x=mO_x, y=mO_y, name="Outros",          marker_color="rgba(192,132,252,.9)"))
                 st.markdown("**Fluxo mensal por tipo**")
                 st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CFG)
 
@@ -1571,7 +1592,7 @@ with tabs[8]:
 # ─────────────────────────────────────────────────────────────────
 with tabs[9]:
 
-    def render_link_card(title, links, cor):
+    def render_link_card(title, links, cor, min_height="220px"):
         items_html = ""
         for nome, url in links:
             items_html += (
@@ -1584,7 +1605,8 @@ with tabs[9]:
             )
         card = (
             f'<div style="background:#0f2044;border:1px solid #1e3a6e;'
-            f'border-top:3px solid {cor};border-radius:12px;padding:18px 20px">'
+            f'border-top:3px solid {cor};border-radius:12px;padding:18px 20px;'
+            f'min-height:{min_height};box-sizing:border-box">'
             f'<h4 style="color:{cor};font-size:11px;font-weight:800;'
             f'text-transform:uppercase;letter-spacing:.08em;'
             f'margin:0 0 14px;padding-bottom:10px;border-bottom:1px solid #1e3a6e">'
