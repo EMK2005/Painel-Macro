@@ -869,6 +869,12 @@ with tabs[6]:
             def soma_periodo(ds, vs, prefixo):
                 return sum(v for d, v in zip(ds, vs) if d.startswith(prefixo))
 
+            def fmt_fluxo(s):
+                """Formata valor de fluxo: M para < 1000, B para >= 1000."""
+                if abs(s) >= 1000:
+                    return f"R$ {abs(s)/1000:,.2f}B"
+                return f"R$ {abs(s):,.1f}M"
+
             # ── Cards: Acumulado no Ano ───────────────────────────
             st.markdown(
                 f'<div style="font-size:13px;font-weight:700;color:#38bdf8;'+
@@ -890,7 +896,7 @@ with tabs[6]:
                         f'text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">'+
                         f'{nome}</div>'+
                         f'<div style="font-size:18px;font-weight:800;color:{cor_val};'+
-                        f'letter-spacing:-.02em">{arrow} R$ {abs(s):,.1f}M</div>'+
+                        f'letter-spacing:-.02em">{arrow} {fmt_fluxo(s)}</div>'+
                         f'</div>',
                         unsafe_allow_html=True)
 
@@ -915,7 +921,7 @@ with tabs[6]:
                         f'text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">'+
                         f'{nome}</div>'+
                         f'<div style="font-size:18px;font-weight:800;color:{cor_val};'+
-                        f'letter-spacing:-.02em">{arrow} R$ {abs(s):,.1f}M</div>'+
+                        f'letter-spacing:-.02em">{arrow} {fmt_fluxo(s)}</div>'+
                         f'</div>',
                         unsafe_allow_html=True)
 
@@ -943,8 +949,8 @@ with tabs[6]:
                     for nome_tipo, vals, _, _ in TIPOS:
                         s = soma_periodo(dates, vals, mes)
                         total += s
-                        row[nome_tipo] = f"{'▲' if s>=0 else '▼'} {abs(s):,.1f}"
-                    row["Total"] = f"{'▲' if total>=0 else '▼'} {abs(total):,.1f}"
+                        row[nome_tipo] = f"{'▲' if s>=0 else '▼'} {fmt_fluxo(s)}"
+                    row["Total"] = f"{'▲' if total>=0 else '▼'} {fmt_fluxo(total)}"
                     tbl_mensal.append(row)
                 render_table(tbl_mensal)
 
