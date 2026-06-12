@@ -549,7 +549,19 @@ with tabs[0]:
     with c1: mcard("WTI",        "CL=F")
     with c2: mcard("Brent",      "BZ=F")
     with c3: mcard("Ouro",       "GC=F")
-    with c4: mcard("Minério Fe", "TIO=F")
+    with c4:
+            st.markdown(
+                '<div style="background:#0f2044;border:1px solid #1e3a6e;'+
+                'border-top:3px solid #2dd4bf;border-radius:10px;padding:14px 16px;margin-bottom:6px">'+
+                '<div style="font-size:10px;color:#64748b;font-weight:700;'+
+                'text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Minério Fe</div>'+
+                '<a href="https://www.sgx.com/derivatives/products/iron-ore" target="_blank"'+
+                ' style="font-size:13px;color:#2dd4bf;font-weight:600;text-decoration:none">'+
+                'Ver cotação SGX ↗</a>'+
+                '<div style="font-size:11px;color:#4a5568;margin-top:4px">sgx.com</div>'+
+                '</div>',
+                unsafe_allow_html=True
+            )
     with c5: mcard("Cobre",      "HG=F")
 
     # Gráficos
@@ -664,7 +676,7 @@ with tabs[2]:
 # ─────────────────────────────────────────────────────────────────
 with tabs[3]:
     comms = [("CL=F","Petróleo WTI",COLORS["slate"]),("GC=F","Ouro",COLORS["amber"]),
-             ("TIO=F","Minério de Ferro",COLORS["teal"]),("ZS=F","Soja",COLORS["green"])]
+             ("ZS=F","Soja",COLORS["green"]),("HG=F","Cobre",COLORS["sky"])]
     c1, c2 = st.columns(2)
     for i,(sym,nome,cor) in enumerate(comms):
         with [c1,c2,c1,c2][i]:
@@ -675,10 +687,21 @@ with tabs[3]:
                     fill="tozeroy", line=dict(color=cor, width=2), fillcolor=fill_color(cor)))
             st.markdown(f"**{nome}**"); st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CFG)
 
+    # Minério de ferro: link direto para SGX
+    st.markdown(
+        '<div style="background:#0f2044;border:1px solid #1e3a6e;border-left:4px solid #2dd4bf;'+
+        'border-radius:10px;padding:12px 18px;margin-bottom:12px;font-size:13px;color:#94a3b8">'+
+        '🔗 <strong style="color:#e2e8f5">Minério de Ferro (SGX Iron Ore 62%):</strong> '+
+        'os dados desta commodity são mais confiáveis diretamente na fonte oficial. '+
+        '<a href="https://www.sgx.com/derivatives/products/iron-ore" target="_blank"'+
+        ' style="color:#2dd4bf;font-weight:700">Acessar SGX ↗</a></div>',
+        unsafe_allow_html=True
+    )
+
     st.markdown("**Resumo**")
     rows = [tbl_row(s,n,d,"US$ ") for s,n,d in [
         ("CL=F","WTI",2),("BZ=F","Brent",2),("GC=F","Ouro",0),("SI=F","Prata",3),
-        ("TIO=F","Minério",2),("ZS=F","Soja",2),("ZC=F","Milho",2),("HG=F","Cobre",3)]]
+("ZS=F","Soja",2),("ZC=F","Milho",2),("HG=F","Cobre",3)]]
     render_table(rows)
 
 # ─────────────────────────────────────────────────────────────────
@@ -809,10 +832,17 @@ with tabs[6]:
             cD = fc(['data','date']); cE = fc(['estrang']); cI = fc(['instit'])
             cP = fc(['pessoa','fisic','pf']); cF = fc(['financ']); cO = fc(['outros'])
 
+            # Usar csv.reader para respeitar as aspas nos valores
+            # (evita quebrar "-1.581,74 mi" que tem vírgula decimal)
+            import csv as _csv
+            from io import StringIO as _SIO
             rows = []
-            for line in lines[1:]:
-                vals = line.split(sep)
-                obj  = {header[i]: (vals[i].replace('"','').strip() if i < len(vals) else '') for i in range(len(header))}
+            reader_csv = _csv.reader(_SIO(raw))
+            next(reader_csv)  # pular header
+            for vals in reader_csv:
+                if not any(vals): continue
+                obj = {header[i]: (vals[i].strip() if i < len(vals) else '')
+                       for i in range(len(header))}
                 if obj.get(cD): rows.append(obj)
 
             def parse_date(s):
@@ -1595,7 +1625,7 @@ with tabs[9]:
             ("VIX B3",           "https://br.investing.com/indices/s-p-b3-ibovespa-vix"),
             ("CDS EUA 10Y",      "https://br.investing.com/rates-bonds/united-states-cds-10-years-usd"),
             ("Petróleo (WTI)",   "https://br.investing.com/commodities/crude-oil"),
-            ("Minério de Ferro", "https://br.investing.com/commodities/iron-ore-62-cfr-futures"),
+            ("Minério de Ferro (SGX)", "https://www.sgx.com/derivatives/products/iron-ore"),
             ("Ouro",             "https://br.investing.com/commodities/gold"),
             ("Aço",              "https://br.investing.com/commodities/us-steel-coil-futures?cid=1178216"),
         ], COLORS["red"])
