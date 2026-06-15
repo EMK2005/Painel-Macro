@@ -293,24 +293,41 @@ Se não souber o preço-alvo exato, estime com base no contexto de mercado e ind
 def get_noticias():
     import re as _re
     feeds = [
-        ("Valor Econômico", "https://valor.globo.com/rss/todosostemas",         8),
-        ("InfoMoney",       "https://www.infomoney.com.br/feed/",               6),
-        ("Exame",           "https://exame.com/feed/",                          5),
-        ("Reuters",         "https://feeds.reuters.com/reuters/businessNews",   8),
-        ("CNN Business",    "http://rss.cnn.com/rss/money_latest.rss",          6),
-        ("BBC Business",    "https://feeds.bbci.co.uk/news/business/rss.xml",   5),
-        ("BBC World",       "https://feeds.bbci.co.uk/news/world/rss.xml",      5),
-        ("Reuters World",   "https://feeds.reuters.com/reuters/worldNews",       5),
+        # Brasil
+        ("Valor Econômico", "https://valor.globo.com/rss/todosostemas",              8),
+        ("InfoMoney",       "https://www.infomoney.com.br/feed/",                    5),
+        # Internacional — negócios e economia
+        ("Reuters",         "https://feeds.reuters.com/reuters/businessNews",        8),
+        ("FT",              "https://www.ft.com/rss/home/uk",                        6),
+        ("Bloomberg",       "https://feeds.bloomberg.com/markets/news.rss",          6),
+        ("WSJ Economy",     "https://feeds.a.dj.com/rss/RSSMarketsMain.xml",         6),
+        # Geopolítica e mundo
+        ("Reuters World",   "https://feeds.reuters.com/reuters/worldNews",            6),
+        ("BBC World",       "https://feeds.bbci.co.uk/news/world/rss.xml",           5),
+        ("The Economist",   "https://www.economist.com/finance-and-economics/rss.xml",5),
+        ("Foreign Affairs", "https://www.foreignaffairs.com/rss.xml",                4),
     ]
+    # Keywords focadas em economia e geopolítica (sem entretenimento/esportes)
     KEYWORDS = {
-        "economia","mercado","bolsa","juros","inflação","inflacao","pib",
-        "banco central","fed","dólar","dolar","petróleo","petroleo","commodit",
-        "trade","war","guerra","tariff","tarifa","sanção","sancao","geopolit",
-        "nato","otan","china","eua","europa","rússia","russia","oriente",
-        "eleição","eleicao","governo","política","politica","crise","recessão",
-        "recessao","emprego","desemprego","fiscal","dívida","divida","reforma",
-        "gdp","growth","recession","rate","interest","oil","gold","ouro",
-        "crypto","bitcoin","tech","ia","inteligência","nuclear","conflito",
+        # Macro Brasil
+        "selic","ipca","pib","banco central","bcb","lula","haddad","copom",
+        "balança","fiscal","reforma","privatiz","infraestrut","brasil",
+        # Macro global
+        "fed","ecb","bce","juros","taxa","inflação","inflacao","recessão","recessao",
+        "gdp","cpi","pce","unemployment","desemprego","payroll","fomc",
+        "interest rate","quantitative","yield","treasury","bond","spread",
+        # Mercados
+        "mercado","bolsa","ações","acoes","ibovespa","s&p","nasdaq","dow",
+        "petróleo","petroleo","ouro","gold","commodit","câmbio","cambio",
+        "dólar","dolar","euro","yuan","yen","bitcoin","crypto",
+        # Geopolítica
+        "guerra","war","conflito","conflict","sanção","sancao","tariff","tarifa",
+        "china","eua","usa","europa","europe","rússia","russia","ucrânia","ukraine",
+        "oriente médio","middle east","iran","israel","nato","otan","taiwan",
+        "trade","comércio","comercio","diplomatic","geopolit","sanction",
+        "trump","xi jinping","putin","zelensky","g7","g20","brics","imf","fmi",
+        # Energia
+        "opec","petróleo","oil","gas","energia","energy","nuclear","renewabl",
     }
     def relevant(title, desc):
         text = (title + " " + desc).lower()
@@ -679,9 +696,17 @@ with tabs[2]:
         with [c1,c2,c1,c2][i]:
             df = yf_hist(sym)
             fig = mk_fig(height=250)
-            if df is not None:
-                fig.add_trace(go.Scatter(x=df.index, y=df["Close"], name=nome, mode="lines",
-                    fill="tozeroy", line=dict(color=cor, width=2), fillcolor=fill_color(cor)))
+            if df is not None and not df.empty:
+                s = df["Close"].dropna()
+                pad = (s.max() - s.min()) * 0.05
+                fig.update_layout(
+                    yaxis=yax(range=[s.min() - pad, s.max() + pad])
+                )
+                fig.add_trace(go.Scatter(
+                    x=df.index, y=df["Close"], name=nome, mode="lines",
+                    fill="tozeroy", line=dict(color=cor, width=2),
+                    fillcolor=fill_color(cor)
+                ))
             st.markdown(f"**{nome}**"); st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CFG)
 
     st.markdown("**Resumo**")
@@ -737,7 +762,7 @@ with tabs[4]:
     with c1:
         fig = mk_fig(height=260, yaxis=yax(ticksuffix="%"))
         if sel is not None: fig.add_trace(go.Scatter(x=sel["data"], y=sel["valor"], name="Selic", mode="lines", fill="tozeroy", line=dict(color=COLORS["red"], width=2), fillcolor="rgba(248,113,113,0.08)"))
-        st.markdown("**Selic Meta**"); st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CFG)
+        st.markdown("**Taxa Selic**"); st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CFG)
     with c2:
         fig = mk_fig(height=260, yaxis=yax(ticksuffix="%", dtick=0.5))
         for df,nome,cor,dash in [(t2y,"T-2Y",COLORS["slate"],"dot"),(t5y,"T-5Y",COLORS["sky"],"solid"),(t10y,"T-10Y",COLORS["blue"],"solid"),(t30y,"T-30Y",COLORS["purple"],"dash")]:
@@ -1012,11 +1037,11 @@ with tabs[6]:
                                    yaxis=yax(ticksuffix=" M", zeroline=True,
                                              zerolinecolor="#374151", zerolinewidth=2))
                 cores_tipo = [
-                    ("Estrangeiro",      estrang, "rgba(56,189,248,.9)"),
-                    ("Institucional",    inst,    "rgba(250,100,100,.9)"),
-                    ("Pessoa Física",    pf,      "rgba(250,204,21,.9)"),
-                    ("Inst. Financeira", fin,     "rgba(167,243,208,.9)"),
-                    ("Outros",           outros,  "rgba(192,132,252,.9)"),
+                    ("Estrangeiro",      estrang, "rgba(56,189,248,.95)"),
+                    ("Institucional",    inst,    "rgba(29,78,216,.95)"),
+                    ("Pessoa Física",    pf,      "rgba(147,197,253,.95)"),
+                    ("Inst. Financeira", fin,     "rgba(96,165,250,.95)"),
+                    ("Outros",           outros,  "rgba(71,85,105,.95)"),
                 ]
                 for nome_tipo, vals, cor_rgba in cores_tipo:
                     ys_2026 = [soma_periodo(dates, vals, m) for m in meses_2026]
@@ -1033,11 +1058,11 @@ with tabs[6]:
                              yaxis=yax(ticksuffix=" M", zeroline=True,
                                         zerolinecolor="#374151", zerolinewidth=2,
                                         title=dict(text="R$ milhões")))
-                fig.add_trace(go.Bar(x=mE_x, y=mE_y, name="Estrangeiro",     marker_color="rgba(56,189,248,.9)"))
-                fig.add_trace(go.Bar(x=mI_x, y=mI_y, name="Institucional",   marker_color="rgba(250,100,100,.9)"))
-                fig.add_trace(go.Bar(x=mP_x, y=mP_y, name="Pessoa Física",   marker_color="rgba(250,204,21,.9)"))
-                fig.add_trace(go.Bar(x=mF_x, y=mF_y, name="Inst. Financeira",marker_color="rgba(167,243,208,.9)"))
-                fig.add_trace(go.Bar(x=mO_x, y=mO_y, name="Outros",          marker_color="rgba(192,132,252,.9)"))
+                fig.add_trace(go.Bar(x=mE_x, y=mE_y, name="Estrangeiro",     marker_color="rgba(56,189,248,.95)"))
+                fig.add_trace(go.Bar(x=mI_x, y=mI_y, name="Institucional",   marker_color="rgba(29,78,216,.95)"))
+                fig.add_trace(go.Bar(x=mP_x, y=mP_y, name="Pessoa Física",   marker_color="rgba(147,197,253,.95)"))
+                fig.add_trace(go.Bar(x=mF_x, y=mF_y, name="Inst. Financeira",marker_color="rgba(96,165,250,.95)"))
+                fig.add_trace(go.Bar(x=mO_x, y=mO_y, name="Outros",          marker_color="rgba(71,85,105,.95)"))
                 st.markdown("**Fluxo mensal por tipo**")
                 st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CFG)
 
