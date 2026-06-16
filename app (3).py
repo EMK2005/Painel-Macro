@@ -156,7 +156,13 @@ def yf_hist(symbol, start="2020-01-01"):
                         interval="1d", auto_adjust=True)
         if df.empty: return None
         df.index = df.index.tz_localize(None)
-        return df[df["Close"].notna()].copy()
+        df = df[df["Close"].notna() & (df["Close"] > 0)].copy()
+        # Para futuros de commodities: remover valores de rollover
+        # (variações diárias > 50% em um dia são quase sempre erro de dados)
+        if len(df) > 1:
+            pct = df["Close"].pct_change().abs()
+            df = df[pct < 0.5].copy()
+        return df if not df.empty else None
     except:
         return None
 
@@ -174,6 +180,9 @@ def yf_info(symbol):
         fi = tk.fast_info
         p  = _safe(fi.last_price) or _safe(fi.regular_market_price)
         pr = _safe(fi.previous_close)
+        # Ignorar valores negativos ou zero (rollover de futuros, erro de dados)
+        if p and p <= 0: p = None
+        if pr and pr <= 0: pr = None
 
         # Fallback: se fast_info não retornar, usar histórico
         if not p:
@@ -525,13 +534,23 @@ def tbl_row(sym, nome, dec=2, pre=""):
 # ══════════════════════════════════════════════════════════════════
 now = datetime.now()
 ts  = now.strftime("%d/%m/%Y às %H:%M")
+# Horário de mercado: B3 opera 10h-18h (BRT = UTC-3)
+hora = now.hour * 60 + now.minute
+mercado_aberto = (10*60 <= hora <= 18*60)
+status_mercado = "🟢 Mercado aberto" if mercado_aberto else "🔴 Mercado fechado"
+atraso = "~15 min de atraso" if mercado_aberto else "fechamento anterior"
+
 st.markdown(f"""
 <div class="painel-header">
   <div>
     <span class="pulse"></span>
     <span class="painel-title">Painel Macro Brasil</span>
   </div>
-  <div class="painel-ts">🕐 {ts} (Brasília) &nbsp;·&nbsp; Yahoo Finance · BCB · BLS</div>
+  <div class="painel-ts">
+    {status_mercado} &nbsp;·&nbsp;
+    🕐 {ts} (Brasília) &nbsp;·&nbsp;
+    ⏱ {atraso} &nbsp;·&nbsp; Yahoo Finance · BCB · BLS
+  </div>
 </div>
 """, unsafe_allow_html=True)
 
