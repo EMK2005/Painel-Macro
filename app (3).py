@@ -532,8 +532,10 @@ def tbl_row(sym, nome, dec=2, pre=""):
 # ══════════════════════════════════════════════════════════════════
 #  HEADER
 # ══════════════════════════════════════════════════════════════════
-now = datetime.now()
-ts  = now.strftime("%d/%m/%Y às %H:%M")
+from datetime import timezone, timedelta
+_BRT = timezone(timedelta(hours=-3))
+now  = datetime.now(_BRT)
+ts   = now.strftime("%d/%m/%Y às %H:%M")
 # Horário de mercado: B3 opera 10h-18h (BRT = UTC-3)
 hora = now.hour * 60 + now.minute
 mercado_aberto = (10*60 <= hora <= 18*60)
@@ -557,8 +559,8 @@ st.markdown(f"""
 # ══════════════════════════════════════════════════════════════════
 #  ABAS
 # ══════════════════════════════════════════════════════════════════
-tabs = st.tabs(["Resumo", "Bolsa", "Câmbio", "Commodities",
-                "Juros", "Inflação", "Fluxo B3", "📰 Notícias", "📈 Ações", "🔗 Links"])
+tabs = st.tabs(["📊 Resumo", "📉 Bolsa", "💱 Câmbio", "🛢️ Commodities",
+                "📈 Juros", "🔥 Inflação", "🌊 Fluxo B3", "📰 Notícias", "🤖 Resumo do Dia", "📈 Ações", "🔗 Links"])
 
 # ─────────────────────────────────────────────────────────────────
 # ABA 1: RESUMO
@@ -875,8 +877,6 @@ with tabs[6]:
     if uploaded:
         try:
             raw = uploaded.read().decode("utf-8")
-            lines = raw.strip().split("\n")
-            sep = ";" if lines[0].count(";") > lines[0].count(",") else ","
 
             def parse_val(s):
                 s = s.replace('"','').strip()
@@ -887,9 +887,16 @@ with tabs[6]:
                 try: return float(s)
                 except: return 0.0
 
+            # Usar csv.reader para header E dados (respeita aspas com vírgulas)
+            import csv as _csv_h
+            from io import StringIO as _SIO_h
+            _reader_h = list(_csv_h.reader(_SIO_h(raw)))
+            header_raw_row = _reader_h[0] if _reader_h else []
             header = [h.replace('"','').strip().lower()
-                      .replace('ã','a').replace('é','e').replace('í','i').replace(' ','_')
-                      for h in lines[0].split(sep)]
+                      .replace('ã','a').replace('é','e').replace('í','i')
+                      .replace('ó','o').replace('ú','u').replace(' ','_')
+                      for h in header_raw_row]
+            lines = raw.strip().split("\n")  # mantido para compatibilidade
 
             def fc(keys):
                 return next((h for h in header if any(k in h for k in keys)), None)
@@ -1262,9 +1269,9 @@ with tabs[7]:
 
 
 # ─────────────────────────────────────────────────────────────────
-# ABA 9: AÇÕES B3
+# ABA 10: AÇÕES B3
 # ─────────────────────────────────────────────────────────────────
-with tabs[8]:
+with tabs[9]:
 
     ACOES_B3 = [
         # (ticker,    nome completo,         cor)
@@ -1632,9 +1639,9 @@ with tabs[8]:
 
 
 # ─────────────────────────────────────────────────────────────────
-# ABA 10: LINKS
+# ABA 11: LINKS
 # ─────────────────────────────────────────────────────────────────
-with tabs[9]:
+with tabs[10]:
 
     def render_link_card(title, links, cor, min_height="220px"):
         items_html = ""
@@ -1717,6 +1724,279 @@ with tabs[9]:
             ("FinViz",      "https://finviz.com/"),
             ("TradingView", "https://br.tradingview.com/"),
         ], COLORS["sky"])
+
+
+# ─────────────────────────────────────────────────────────────────
+# ABA 9: RESUMO DO DIA (IA)
+# ─────────────────────────────────────────────────────────────────
+with tabs[8]:
+
+    @st.cache_data(ttl=3600, show_spinner=False)
+    def gerar_resumo_dia():
+        """Gera o Morning Briefing do dia com dados reais + IA."""
+        try:
+            api_key = st.secrets.get("ANTHROPIC_API_KEY", "")
+            if not api_key:
+                return None, "⚠️ Chave API não configurada."
+
+            # Coletar dados reais em tempo real
+            from datetime import date as _d
+            hoje = _d.today().strftime("%d/%m/%Y")
+
+            def safe_price(sym):
+                try:
+                    tk = yf.Ticker(sym)
+                    fi = tk.fast_info
+                    p  = fi.last_price or fi.regular_market_price
+                    pr = fi.previous_close
+                    if p and pr and pr > 0:
+                        return p, (p-pr)/pr*100
+                    h = tk.history(period="2d")
+                    if not h.empty:
+                        c = h["Close"].dropna()
+                        p2, p1 = float(c.iloc[-1]), float(c.iloc[-2])
+                        return p2, (p2-p1)/p1*100
+                except: pass
+                return None, None
+
+            dados_mercado = {}
+            ativos = {
+                "ibov":  "^BVSP",  "sp500": "^GSPC",  "nasdaq": "^NDX",
+                "vix":   "^VIX",   "dxy":   "DX-Y.NYB","usdbrl": "BRL=X",
+                "wti":   "CL=F",   "brent": "BZ=F",    "ouro":   "GC=F",
+                "btc":   "BTC-USD","t10y":  "^TNX",
+            }
+            for nome, sym in ativos.items():
+                p, chg = safe_price(sym)
+                dados_mercado[nome] = {"preco": p, "chg": chg}
+
+            def fmt_ativo(nome):
+                d = dados_mercado.get(nome, {})
+                p, c = d.get("preco"), d.get("chg")
+                if p is None: return "indisponível"
+                sinal = "+" if (c or 0) >= 0 else ""
+                return f"{p:,.2f} ({sinal}{c:.2f}%)" if c is not None else f"{p:,.2f}"
+
+            # Buscar manchetes das notícias
+            noticias_raw = get_noticias()
+            manchetes = [n["title"] for n in noticias_raw[:12]] if noticias_raw else []
+            manchetes_str = "\n".join(f"- {t}" for t in manchetes)
+
+            prompt = f"""Você é um estrategista de mercado sênior. Gere um Morning Briefing completo para {hoje}.
+
+DADOS DE MERCADO REAIS (agora):
+- IBOVESPA: {fmt_ativo('ibov')}
+- S&P 500: {fmt_ativo('sp500')}
+- Nasdaq: {fmt_ativo('nasdaq')}
+- VIX: {fmt_ativo('vix')}
+- USD/BRL: {fmt_ativo('usdbrl')}
+- DXY: {fmt_ativo('dxy')}
+- WTI: {fmt_ativo('wti')} USD/barril
+- Brent: {fmt_ativo('brent')} USD/barril
+- Ouro: {fmt_ativo('ouro')} USD/oz
+- Bitcoin: {fmt_ativo('btc')}
+- Treasury 10Y: {fmt_ativo('t10y')}%
+
+MANCHETES DO DIA:
+{manchetes_str}
+
+Retorne SOMENTE um JSON válido com esta estrutura:
+{{
+  "sentimento": "risk-on" ou "risk-off" ou "neutro",
+  "sentimento_desc": "Uma frase resumindo o sentimento geral do mercado",
+  "cenario_geral": "Parágrafo de 2-3 frases sobre o cenário macro do dia",
+  "destaques": [
+    {{"categoria": "Bolsas", "icone": "📈", "texto": "resumo das bolsas em 1 frase"}},
+    {{"categoria": "Juros", "icone": "📊", "texto": "resumo dos juros em 1 frase"}},
+    {{"categoria": "Câmbio", "icone": "💱", "texto": "resumo do câmbio em 1 frase"}},
+    {{"categoria": "Commodities", "icone": "🛢️", "texto": "resumo das commodities em 1 frase"}},
+    {{"categoria": "Cripto", "icone": "₿", "texto": "resumo do bitcoin em 1 frase"}}
+  ],
+  "temas_principais": [
+    {{"tema": "Nome do tema", "descricao": "2-3 frases explicando o tema e impacto nos mercados"}},
+    {{"tema": "Nome do tema", "descricao": "2-3 frases"}},
+    {{"tema": "Nome do tema", "descricao": "2-3 frases"}}
+  ],
+  "agenda": [
+    {{"hora": "HH:MM", "pais": "🇧🇷", "evento": "nome do evento", "relevancia": "alta/media/baixa"}},
+    {{"hora": "HH:MM", "pais": "🇺🇸", "evento": "nome do evento", "relevancia": "alta/media/baixa"}}
+  ],
+  "resumo_final": "Uma frase de conclusão, direta e objetiva sobre o dia nos mercados",
+  "vieses": [
+    {{"ativo": "Nome do ativo/classe", "direcao": "alta" ou "baixa" ou "neutro", "motivo": "1 frase curta"}}
+  ]
+}}
+
+Seja preciso, objetivo e use os dados reais fornecidos. Agenda deve ter os principais eventos econômicos REAIS de hoje {hoje}."""
+
+            client = anthropic.Anthropic(api_key=api_key)
+            msg = client.messages.create(
+                model="claude-sonnet-4-5",
+                max_tokens=2000,
+                messages=[{"role": "user", "content": prompt}]
+            )
+            texto = msg.content[0].text.strip()
+            if texto.startswith("```"):
+                texto = texto.split("\n", 1)[1]
+            if texto.endswith("```"):
+                texto = texto.rsplit("\n", 1)[0]
+
+            import json as _j
+            dados = _j.loads(texto.strip())
+            return dados, None
+
+        except Exception as e:
+            return None, f"Erro: {str(e)}"
+
+    # ── Interface da aba ──────────────────────────────────────────
+    col_title, col_btn = st.columns([4, 1])
+    with col_title:
+        from datetime import date as _dt
+        st.markdown(
+            f'<h3 style="color:#e2e8f5;margin:0 0 4px">🤖 Morning Briefing — {_dt.today().strftime("%d/%m/%Y")}</h3>'+
+            f'<p style="color:#64748b;font-size:12px;margin:0 0 16px">Gerado automaticamente com base em dados reais de mercado</p>',
+            unsafe_allow_html=True)
+    with col_btn:
+        if st.button("🔄 Gerar novo", use_container_width=True):
+            st.cache_data.clear()
+            st.rerun()
+
+    with st.spinner("🤖 Analisando mercados e gerando briefing..."):
+        dados_briefing, erro_briefing = gerar_resumo_dia()
+
+    if erro_briefing:
+        st.error(erro_briefing)
+    elif dados_briefing:
+        d = dados_briefing
+
+        # ── Sentimento do dia ─────────────────────────────────────
+        sent = d.get("sentimento", "neutro")
+        sent_cor = {"risk-on": "#4ade80", "risk-off": "#f87171", "neutro": "#fbbf24"}.get(sent, "#94a3b8")
+        sent_bg  = {"risk-on": "rgba(74,222,128,.1)", "risk-off": "rgba(248,113,113,.1)", "neutro": "rgba(251,191,36,.1)"}.get(sent, "rgba(148,163,184,.1)")
+        sent_emoji = {"risk-on": "🟢", "risk-off": "🔴", "neutro": "🟡"}.get(sent, "⚪")
+
+        st.markdown(
+            f'<div style="background:{sent_bg};border:1px solid {sent_cor}44;'+
+            f'border-left:4px solid {sent_cor};border-radius:10px;'+
+            f'padding:14px 20px;margin-bottom:16px;display:flex;align-items:center;gap:14px">'+
+            f'<div style="font-size:28px">{sent_emoji}</div>'+
+            f'<div>'+
+            f'<div style="font-size:11px;font-weight:800;text-transform:uppercase;'+
+            f'letter-spacing:.08em;color:{sent_cor};margin-bottom:3px">Sentimento: {sent.upper()}</div>'+
+            f'<div style="font-size:14px;color:#e2e8f5;font-weight:500">{d.get("sentimento_desc","")}</div>'+
+            f'</div></div>',
+            unsafe_allow_html=True)
+
+        # ── Cards de destaques por categoria ─────────────────────
+        destaques = d.get("destaques", [])
+        if destaques:
+            cols_d = st.columns(len(destaques))
+            for col, dest in zip(cols_d, destaques):
+                with col:
+                    st.markdown(
+                        f'<div style="background:#0f2044;border:1px solid #1e3a6e;'+
+                        f'border-radius:10px;padding:14px 12px;text-align:center;height:100%">'+
+                        f'<div style="font-size:22px;margin-bottom:6px">{dest.get("icone","")}</div>'+
+                        f'<div style="font-size:10px;color:#38bdf8;font-weight:700;'+
+                        f'text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">'+
+                        f'{dest.get("categoria","")}</div>'+
+                        f'<div style="font-size:11px;color:#94a3b8;line-height:1.5">'+
+                        f'{dest.get("texto","")}</div></div>',
+                        unsafe_allow_html=True)
+
+        st.markdown("<br>", unsafe_allow_html=True)
+
+        # ── Cenário geral + Temas principais ─────────────────────
+        c_esq, c_dir = st.columns([3, 2])
+
+        with c_esq:
+            st.markdown(
+                '<div style="font-size:13px;font-weight:700;color:#38bdf8;'+
+                'text-transform:uppercase;letter-spacing:.07em;margin-bottom:10px">📋 Cenário Geral</div>',
+                unsafe_allow_html=True)
+            st.markdown(
+                f'<div style="background:#0f2044;border:1px solid #1e3a6e;'+
+                f'border-radius:10px;padding:16px 18px;font-size:13px;'+
+                f'color:#cbd5e1;line-height:1.7">{d.get("cenario_geral","")}</div>',
+                unsafe_allow_html=True)
+
+            st.markdown("<br>", unsafe_allow_html=True)
+            st.markdown(
+                '<div style="font-size:13px;font-weight:700;color:#38bdf8;'+
+                'text-transform:uppercase;letter-spacing:.07em;margin-bottom:10px">🔍 Principais Temas</div>',
+                unsafe_allow_html=True)
+            for tema in d.get("temas_principais", []):
+                st.markdown(
+                    f'<div style="background:#0f2044;border:1px solid #1e3a6e;'+
+                    f'border-left:3px solid #38bdf8;border-radius:8px;'+
+                    f'padding:12px 16px;margin-bottom:8px">'+
+                    f'<div style="font-size:12px;font-weight:700;color:#e2e8f5;margin-bottom:4px">'+
+                    f'{tema.get("tema","")}</div>'+
+                    f'<div style="font-size:12px;color:#94a3b8;line-height:1.6">'+
+                    f'{tema.get("descricao","")}</div></div>',
+                    unsafe_allow_html=True)
+
+        with c_dir:
+            # Agenda econômica
+            st.markdown(
+                '<div style="font-size:13px;font-weight:700;color:#38bdf8;'+
+                'text-transform:uppercase;letter-spacing:.07em;margin-bottom:10px">📅 Agenda do Dia</div>',
+                unsafe_allow_html=True)
+            agenda = d.get("agenda", [])
+            if agenda:
+                rel_cores = {"alta": "#f87171", "media": "#fbbf24", "baixa": "#64748b"}
+                for ev in agenda:
+                    rel = ev.get("relevancia", "media")
+                    rel_cor = rel_cores.get(rel, "#64748b")
+                    st.markdown(
+                        f'<div style="background:#0f2044;border:1px solid #1e3a6e;'+
+                        f'border-radius:8px;padding:10px 14px;margin-bottom:6px;'+
+                        f'display:flex;align-items:center;gap:10px">'+
+                        f'<div style="font-size:18px">{ev.get("pais","🌐")}</div>'+
+                        f'<div style="flex:1">'+
+                        f'<div style="font-size:12px;color:#e2e8f5;font-weight:600">{ev.get("evento","")}</div>'+
+                        f'<div style="font-size:10px;color:#64748b">{ev.get("hora","")}</div></div>'+
+                        f'<div style="width:6px;height:6px;border-radius:50%;background:{rel_cor};flex-shrink:0"></div>'+
+                        f'</div>',
+                        unsafe_allow_html=True)
+            else:
+                st.markdown('<div style="color:#64748b;font-size:13px">Sem eventos relevantes hoje.</div>',
+                            unsafe_allow_html=True)
+
+            st.markdown("<br>", unsafe_allow_html=True)
+
+            # Vieses
+            st.markdown(
+                '<div style="font-size:13px;font-weight:700;color:#38bdf8;'+
+                'text-transform:uppercase;letter-spacing:.07em;margin-bottom:10px">🎯 Viés por Ativo</div>',
+                unsafe_allow_html=True)
+            for v in d.get("vieses", []):
+                dir_ = v.get("direcao","neutro")
+                arrow = "▲" if dir_ == "alta" else "▼" if dir_ == "baixa" else "→"
+                acor  = "#4ade80" if dir_ == "alta" else "#f87171" if dir_ == "baixa" else "#fbbf24"
+                st.markdown(
+                    f'<div style="background:#0f2044;border:1px solid #1e3a6e;'+
+                    f'border-radius:8px;padding:9px 14px;margin-bottom:6px;'+
+                    f'display:flex;align-items:center;gap:10px">'+
+                    f'<div style="font-size:16px;font-weight:800;color:{acor};width:20px">{arrow}</div>'+
+                    f'<div>'+
+                    f'<div style="font-size:12px;color:#e2e8f5;font-weight:600">{v.get("ativo","")}</div>'+
+                    f'<div style="font-size:11px;color:#64748b">{v.get("motivo","")}</div>'+
+                    f'</div></div>',
+                    unsafe_allow_html=True)
+
+        # ── Resumo final ──────────────────────────────────────────
+        st.markdown("<br>", unsafe_allow_html=True)
+        resumo = d.get("resumo_final", "")
+        if resumo:
+            st.markdown(
+                f'<div style="background:linear-gradient(135deg,#0f2044,#0d1a38);'+
+                f'border:1px solid #38bdf844;border-left:4px solid #38bdf8;'+
+                f'border-radius:10px;padding:16px 20px;font-size:14px;'+
+                f'font-weight:600;color:#e2e8f5;line-height:1.6">💡 {resumo}</div>',
+                unsafe_allow_html=True)
+    else:
+        st.info("Clique em 🔄 Gerar novo para criar o briefing do dia.")
 
 # ── Botão de atualização ──────────────────────────────────────────
 st.markdown("---")
