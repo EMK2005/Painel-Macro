@@ -464,6 +464,51 @@ def render_table(rows):
         f'<thead><tr>{th}</tr></thead><tbody>{trs}</tbody></table></div>',
         unsafe_allow_html=True)
 
+
+def render_table_fluxo(rows):
+    """Tabela de fluxo B3 com cores: verde=entrada, vermelho=saída, azul=IBOV positivo."""
+    if not rows: return
+    cols = list(rows[0].keys())
+
+    # Colunas de fluxo (entrada=verde, saída=vermelho)
+    fluxo_cols = {"Estrangeiro","Institucional","Pessoa Física","Inst. Financeira","Outros"}
+    # IBOV: verde=positivo, vermelho=negativo
+    ibov_cols  = {"IBOV dia"}
+
+    def cell_color(val, col):
+        if not isinstance(val, str): return ""
+        if col in fluxo_cols or col in ibov_cols:
+            if val.startswith("▲"): return "color:#4ade80;font-weight:700;"
+            if val.startswith("▼"): return "color:#f87171;font-weight:700;"
+        return ""
+
+    right_cols = fluxo_cols | ibov_cols | {"Saldo"}
+
+    th = "".join(
+        f'<th style="background:#0d1d3a;color:#38bdf8;font-size:10px;font-weight:700;'+
+        f'text-transform:uppercase;letter-spacing:.05em;padding:10px 14px;'+
+        f'text-align:{"right" if c in right_cols else "left"};white-space:nowrap;'+
+        f'border-bottom:2px solid #1e3a6e;position:sticky;top:0">{c}</th>'
+        for c in cols)
+
+    trs = ""
+    for i, row in enumerate(rows):
+        bg = "#0f2044" if i % 2 == 0 else "#0a1832"
+        tds = "".join(
+            f'<td style="padding:9px 14px;border-bottom:1px solid #1e3a6e;'+
+            f'text-align:{"right" if c in right_cols else "left"};'+
+            f'font-size:12px;white-space:nowrap;{cell_color(row.get(c,""),c)}">'+
+            f'{row.get(c,"—")}</td>'
+            for c in cols)
+        trs += f'<tr style="background:{bg}">{tds}</tr>'
+
+    st.markdown(
+        f'<div style="overflow-x:auto;border-radius:10px;border:1px solid #1e3a6e;'+
+        f'margin-bottom:16px;max-height:420px;overflow-y:auto">'+
+        f'<table style="width:100%;border-collapse:collapse;font-family:-apple-system,sans-serif">'+
+        f'<thead><tr>{th}</tr></thead><tbody>{trs}</tbody></table></div>',
+        unsafe_allow_html=True)
+
 def line_trace(df, col, name, color, dash="solid"):
     if df is None or df.empty: return None
     return go.Scatter(
@@ -559,8 +604,8 @@ st.markdown(f"""
 # ══════════════════════════════════════════════════════════════════
 #  ABAS
 # ══════════════════════════════════════════════════════════════════
-tabs = st.tabs(["📊 Resumo", "📉 Bolsa", "💱 Câmbio", "🛢️ Commodities",
-                "📈 Juros", "🔥 Inflação", "🌊 Fluxo B3", "📰 Notícias", "🤖 Resumo do Dia", "📈 Ações", "🔗 Links"])
+tabs = st.tabs(["📊 Resumo", "📋 Briefing", "📉 Bolsa", "💱 Câmbio", "🛢️ Commodities",
+                "📈 Juros", "🔥 Inflação", "🌊 Fluxo B3", "📰 Notícias", "🤖 Ações", "🔗 Links"])
 
 # ─────────────────────────────────────────────────────────────────
 # ABA 1: RESUMO
@@ -637,9 +682,9 @@ with tabs[0]:
         st.markdown("**Ouro (US$/oz)**"); st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CFG)
 
 # ─────────────────────────────────────────────────────────────────
-# ABA 2: BOLSA
+# ABA 3: BOLSA
 # ─────────────────────────────────────────────────────────────────
-with tabs[1]:
+with tabs[2]:
     c1, c2 = st.columns(2)
     with c1:
         ibov_df = yf_hist("^BVSP")
@@ -707,9 +752,9 @@ with tabs[1]:
     render_table(rows)
 
 # ─────────────────────────────────────────────────────────────────
-# ABA 3: CÂMBIO
+# ABA 4: CÂMBIO
 # ─────────────────────────────────────────────────────────────────
-with tabs[2]:
+with tabs[3]:
     c1, c2 = st.columns(2)
     pairs = [("BRL=X","USD/BRL",COLORS["amber"]),("EURBRL=X","EUR/BRL",COLORS["teal"]),
              ("DX-Y.NYB","DXY",COLORS["slate"]),("BTC-USD","Bitcoin (USD)",COLORS["amber"])]
@@ -737,9 +782,9 @@ with tabs[2]:
     render_table(rows)
 
 # ─────────────────────────────────────────────────────────────────
-# ABA 4: COMMODITIES
+# ABA 5: COMMODITIES
 # ─────────────────────────────────────────────────────────────────
-with tabs[3]:
+with tabs[4]:
     comms = [("CL=F","Petróleo WTI",COLORS["slate"]),("GC=F","Ouro",COLORS["amber"]),
              ("ZS=F","Soja",COLORS["green"]),("HG=F","Cobre",COLORS["sky"])]
     c1, c2 = st.columns(2)
@@ -772,9 +817,9 @@ with tabs[3]:
     render_table(rows)
 
 # ─────────────────────────────────────────────────────────────────
-# ABA 5: JUROS
+# ABA 6: JUROS
 # ─────────────────────────────────────────────────────────────────
-with tabs[4]:
+with tabs[5]:
     sel  = bcb_sgs(432)
     t2y  = yf_hist("^IRX"); t5y = yf_hist("^FVX")
     t10y = yf_hist("^TNX"); t30y = yf_hist("^TYX")
@@ -822,9 +867,9 @@ with tabs[4]:
         st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CFG)
 
 # ─────────────────────────────────────────────────────────────────
-# ABA 6: INFLAÇÃO
+# ABA 7: INFLAÇÃO
 # ─────────────────────────────────────────────────────────────────
-with tabs[5]:
+with tabs[6]:
     ipca = bcb_sgs(13522); igpm = bcb_sgs(189); cpi = get_cpi()
 
     # IPCA mensal — largura total (maior)
@@ -853,9 +898,9 @@ with tabs[5]:
         st.markdown("**CPI EUA — YoY %**"); st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CFG)
 
 # ─────────────────────────────────────────────────────────────────
-# ABA 7: FLUXO B3
+# ABA 8: FLUXO B3
 # ─────────────────────────────────────────────────────────────────
-with tabs[6]:
+with tabs[7]:
     st.markdown(
         '''<div style="background:rgba(56,189,248,.08);border:1px solid rgba(56,189,248,.25);
         border-radius:10px;padding:14px 18px;margin-bottom:12px;font-size:13px;color:#94a3b8;line-height:1.7">
@@ -1038,23 +1083,22 @@ with tabs[6]:
             meses_2026 = sorted(set(d[:7] for d in dates if d.startswith(ano_atual)))
 
             if meses_2026:
+                import calendar as _cal
                 tbl_mensal = []
                 for mes in meses_2026:
-                    import calendar, locale
                     try:
                         y, m = int(mes[:4]), int(mes[5:])
-                        nome_mes = calendar.month_abbr[m].capitalize() + f"/{y}"
+                        nome_mes = _cal.month_abbr[m].capitalize() + f"/{y}"
                     except Exception:
                         nome_mes = mes
                     row = {"Mês": nome_mes}
-                    total = 0
                     for nome_tipo, vals, _, _ in TIPOS:
                         s = soma_periodo(dates, vals, mes)
-                        total += s
+                        # Nota: Total sempre ~0 (compra=venda), então omitimos
                         row[nome_tipo] = f"{'▲' if s>=0 else '▼'} {fmt_fluxo(s)}"
-                    row["Total"] = f"{'▲' if total>=0 else '▼'} {fmt_fluxo(total)}"
                     tbl_mensal.append(row)
-                render_table(tbl_mensal)
+                # Tabela mensal com cores
+                render_table_fluxo(tbl_mensal)
 
                 # Gráfico de barras empilhadas — acumulado mensal 2026
                 st.markdown("**Fluxo acumulado por mês — 2026**")
@@ -1148,28 +1192,41 @@ with tabs[6]:
             if ibov_df is not None:
                 for d, v in zip(ibov_df.index.strftime("%Y-%m-%d"), ibov_df["Close"]):
                     ibov_map[d] = round(float(v), 0)
+            # Construir mapa de variação % do IBOV
+            ibov_chg_map = {}
+            if ibov_df is not None and len(ibov_df) > 1:
+                closes = ibov_df["Close"].dropna()
+                dates_ibov = ibov_df.index.strftime("%Y-%m-%d").tolist()
+                for j in range(1, len(closes)):
+                    d_ibov = dates_ibov[j]
+                    prev   = float(closes.iloc[j-1])
+                    curr   = float(closes.iloc[j])
+                    if prev > 0:
+                        ibov_chg_map[d_ibov] = (curr - prev) / prev * 100
+
             for i in range(len(dates)-1, max(-1, len(dates)-101), -1):
                 d = dates[i]
-                s = estrang[i]+inst[i]+pf[i]+fin[i]+outros[i]
+                chg_ibov = ibov_chg_map.get(d)
+                ibov_str = (f"{'▲' if chg_ibov >= 0 else '▼'} {abs(chg_ibov):.2f}%"
+                            if chg_ibov is not None else "—")
                 tbl_data.append({
                     "Data": d,
-                    "Estrangeiro": f"{estrang[i]:+.1f}",
-                    "Institucional": f"{inst[i]:+.1f}",
-                    "Pessoa Física": f"{pf[i]:+.1f}",
-                    "Inst. Financeira": f"{fin[i]:+.1f}",
-                    "Outros": f"{outros[i]:+.1f}",
-                    "Saldo": f"{s:+.1f}",
-                    "IBOVESPA": f"{ibov_map.get(d, '—'):.0f}" if d in ibov_map else "—",
+                    "Estrangeiro": f"{'▲' if estrang[i]>=0 else '▼'} {fmt_fluxo(estrang[i])}",
+                    "Institucional": f"{'▲' if inst[i]>=0 else '▼'} {fmt_fluxo(inst[i])}",
+                    "Pessoa Física": f"{'▲' if pf[i]>=0 else '▼'} {fmt_fluxo(pf[i])}",
+                    "Inst. Financeira": f"{'▲' if fin[i]>=0 else '▼'} {fmt_fluxo(fin[i])}",
+                    "Outros": f"{'▲' if outros[i]>=0 else '▼'} {fmt_fluxo(outros[i])}",
+                    "IBOV dia": ibov_str,
                 })
-            render_table(tbl_data)
+            render_table_fluxo(tbl_data)
 
         except Exception as e:
             st.error(f"Erro ao processar CSV: {e}")
 
 # ─────────────────────────────────────────────────────────────────
-# ABA 8: NOTÍCIAS
+# ABA 9: NOTÍCIAS
 # ─────────────────────────────────────────────────────────────────
-with tabs[7]:
+with tabs[8]:
     with st.spinner("Carregando notícias..."):
         noticias = get_noticias()
 
@@ -1727,9 +1784,9 @@ with tabs[10]:
 
 
 # ─────────────────────────────────────────────────────────────────
-# ABA 9: RESUMO DO DIA (IA)
+# ABA 2: BRIEFING (IA)
 # ─────────────────────────────────────────────────────────────────
-with tabs[8]:
+with tabs[1]:
 
     @st.cache_data(ttl=3600, show_spinner=False)
     def gerar_resumo_dia():
