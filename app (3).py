@@ -712,12 +712,36 @@ with tabs[2]:
         else:
             st.info("Dados do IBOVESPA indisponíveis")
     with c2:
-        vix = yf_hist("^VIX")
-        fig = mk_fig(height=340)
-        if vix is not None:
-            fig.add_trace(go.Scatter(x=vix.index, y=vix["Close"], name="VIX", mode="lines", fill="tozeroy", line=dict(color=COLORS["red"], width=2), fillcolor="rgba(248,113,113,0.08)"))
-            fig.add_hline(y=30, line=dict(color=COLORS["amber"], dash="dash", width=1.5), annotation_text="Zona stress")
-        st.markdown("**VIX**"); st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CFG)
+        sp_df = yf_hist("^GSPC")
+        if sp_df is not None and not sp_df.empty:
+            fig = mk_fig(height=340,
+                         yaxis=yax(tickformat=",.0f", title=dict(text="Pontos")),
+                         yaxis2=dict(overlaying="y", side="right", showgrid=False,
+                                     tickformat=".2s", tickfont=dict(size=9, color="#64748b"),
+                                     title=dict(text="Volume", font=dict(size=10))),
+                         barmode="overlay")
+            fig.add_trace(go.Bar(
+                x=sp_df.index, y=sp_df["Volume"],
+                name="Volume", yaxis="y2",
+                marker_color="rgba(74,222,128,0.15)", showlegend=True
+            ))
+            fig.add_trace(go.Scatter(
+                x=sp_df.index, y=sp_df["Close"],
+                name="S&P 500", mode="lines", yaxis="y",
+                line=dict(color=COLORS["green"], width=2),
+                hovertemplate="%{y:,.0f} pts<extra>S&P 500</extra>"
+            ))
+            st.markdown("**S&P 500 + Volume**")
+            st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CFG)
+        else:
+            st.info("Dados do S&P 500 indisponíveis")
+
+    vix = yf_hist("^VIX")
+    fig = mk_fig(height=260)
+    if vix is not None:
+        fig.add_trace(go.Scatter(x=vix.index, y=vix["Close"], name="VIX", mode="lines", fill="tozeroy", line=dict(color=COLORS["red"], width=2), fillcolor="rgba(248,113,113,0.08)"))
+        fig.add_hline(y=30, line=dict(color=COLORS["amber"], dash="dash", width=1.5), annotation_text="Zona stress")
+    st.markdown("**VIX**"); st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CFG)
 
     # ── Heatmaps: IBOV e S&P 500 lado a lado ────────────────────────
     def make_heatmap(symbol, title):
