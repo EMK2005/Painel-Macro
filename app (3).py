@@ -715,23 +715,15 @@ with tabs[2]:
         sp_df = yf_hist("^GSPC")
         if sp_df is not None and not sp_df.empty:
             fig = mk_fig(height=340,
-                         yaxis=yax(tickformat=",.0f", title=dict(text="Pontos")),
-                         yaxis2=dict(overlaying="y", side="right", showgrid=False,
-                                     tickformat=".2s", tickfont=dict(size=9, color="#64748b"),
-                                     title=dict(text="Volume", font=dict(size=10))),
-                         barmode="overlay")
-            fig.add_trace(go.Bar(
-                x=sp_df.index, y=sp_df["Volume"],
-                name="Volume", yaxis="y2",
-                marker_color="rgba(74,222,128,0.15)", showlegend=True
-            ))
+                         yaxis=yax(tickformat=",.0f", title=dict(text="Pontos")))
             fig.add_trace(go.Scatter(
                 x=sp_df.index, y=sp_df["Close"],
-                name="S&P 500", mode="lines", yaxis="y",
+                name="S&P 500", mode="lines",
                 line=dict(color=COLORS["green"], width=2),
+                fill="tozeroy", fillcolor="rgba(74,222,128,0.06)",
                 hovertemplate="%{y:,.0f} pts<extra>S&P 500</extra>"
             ))
-            st.markdown("**S&P 500 + Volume**")
+            st.markdown("**S&P 500**")
             st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CFG)
         else:
             st.info("Dados do S&P 500 indisponíveis")
