@@ -661,7 +661,11 @@ with tabs[0]:
     with c2:
         usd = yf_hist("BRL=X")
         fig = mk_fig(height=260)
-        if usd is not None: fig.add_trace(go.Scatter(x=usd.index, y=usd["Close"], name="USD/BRL", mode="lines", fill="tozeroy", line=dict(color=COLORS["amber"], width=2), fillcolor="rgba(251,191,36,0.08)"))
+        if usd is not None and not usd.empty:
+            s = usd["Close"].dropna()
+            pad = (s.max() - s.min()) * 0.05
+            fig.update_layout(yaxis=yax(range=[s.min() - pad, s.max() + pad]))
+            fig.add_trace(go.Scatter(x=usd.index, y=usd["Close"], name="USD/BRL", mode="lines", fill="tozeroy", line=dict(color=COLORS["amber"], width=2), fillcolor="rgba(251,191,36,0.08)"))
         st.markdown("**USD/BRL**"); st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CFG)
 
     c1, c2 = st.columns(2)
@@ -766,6 +770,18 @@ with tabs[2]:
     st.markdown("**Resumo**")
     rows = [tbl_row(s,n) for s,n in [("^BVSP","IBOVESPA"),("^GSPC","S&P 500"),("^NDX","Nasdaq 100"),("^VIX","VIX"),("^DJI","Dow Jones")]]
     render_table(rows)
+
+    st.markdown("**Índices Internacionais**")
+    rows_intl = [tbl_row(s,n) for s,n in [
+        ("^N225","Nikkei 225 (Japão)"),
+        ("^GDAXI","DAX (Alemanha)"),
+        ("^FTSE","FTSE 100 (Reino Unido)"),
+        ("000001.SS","Shanghai Composite (China)"),
+        ("^HSI","Hang Seng (Hong Kong)"),
+        ("^FCHI","CAC 40 (França)"),
+        ("^MXX","IPC (México)"),
+    ]]
+    render_table(rows_intl)
 
 # ─────────────────────────────────────────────────────────────────
 # ABA 5: CÂMBIO
@@ -1358,11 +1374,11 @@ with tabs[3]:
         ("ABEV3.SA",  "Ambev",               COLORS["amber"]),
         ("RENT3.SA",  "Localiza",            COLORS["teal"]),
         ("SUZB3.SA",  "Suzano",              COLORS["green"]),
-        ("RADL3.SA",  "Raia Drogasil",       COLORS["blue"]),
+        ("BBDC4.SA",  "Bradesco",            COLORS["blue"]),
         ("MGLU3.SA",  "Magazine Luiza",      COLORS["red"]),
         ("EGIE3.SA",  "Engie Brasil",        COLORS["purple"]),
-        ("TOTS3.SA",  "Totvs",               COLORS["sky"]),
-        ("LREN3.SA",  "Lojas Renner",        COLORS["amber"]),
+        ("ECOR3.SA",  "Ecorodovias",         COLORS["sky"]),
+        ("ITSA4.SA",  "Itaúsa",              COLORS["amber"]),
     ]
 
     start_5y = (datetime.now() - timedelta(days=365*5)).strftime("%Y-%m-%d")
