@@ -604,8 +604,8 @@ st.markdown(f"""
 # ══════════════════════════════════════════════════════════════════
 #  ABAS
 # ══════════════════════════════════════════════════════════════════
-tabs = st.tabs(["📊 Resumo", "📋 Briefing", "📉 Bolsa", "💹 Ações", "💱 Câmbio", "🛢️ Commodities",
-                "📈 Juros", "🔥 Inflação", "🌊 Fluxo B3", "📰 Notícias", "🔗 Links"])
+tabs = st.tabs(["📊 Resumo", "📋 Briefing", "📉 Bolsa", "💹 Ações", "🌊 Fluxo B3", "💱 Câmbio", "🛢️ Commodities",
+                "📈 Juros", "🔥 Inflação", "📰 Notícias", "🔗 Links"])
 
 # ─────────────────────────────────────────────────────────────────
 # ABA 1: RESUMO
@@ -784,9 +784,9 @@ with tabs[2]:
     render_table(rows_intl)
 
 # ─────────────────────────────────────────────────────────────────
-# ABA 5: CÂMBIO
+# ABA 6: CÂMBIO
 # ─────────────────────────────────────────────────────────────────
-with tabs[4]:
+with tabs[5]:
     c1, c2 = st.columns(2)
     pairs = [("BRL=X","USD/BRL",COLORS["amber"]),("EURBRL=X","EUR/BRL",COLORS["teal"]),
              ("DX-Y.NYB","DXY",COLORS["slate"]),("BTC-USD","Bitcoin (USD)",COLORS["amber"])]
@@ -814,9 +814,9 @@ with tabs[4]:
     render_table(rows)
 
 # ─────────────────────────────────────────────────────────────────
-# ABA 6: COMMODITIES
+# ABA 7: COMMODITIES
 # ─────────────────────────────────────────────────────────────────
-with tabs[5]:
+with tabs[6]:
     comms = [("CL=F","Petróleo WTI",COLORS["slate"]),("GC=F","Ouro",COLORS["amber"]),
              ("ZS=F","Soja",COLORS["green"]),("HG=F","Cobre",COLORS["sky"])]
     c1, c2 = st.columns(2)
@@ -849,9 +849,9 @@ with tabs[5]:
     render_table(rows)
 
 # ─────────────────────────────────────────────────────────────────
-# ABA 7: JUROS
+# ABA 8: JUROS
 # ─────────────────────────────────────────────────────────────────
-with tabs[6]:
+with tabs[7]:
     sel  = bcb_sgs(432)
     t2y  = yf_hist("^IRX"); t5y = yf_hist("^FVX")
     t10y = yf_hist("^TNX"); t30y = yf_hist("^TYX")
@@ -899,9 +899,9 @@ with tabs[6]:
         st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CFG)
 
 # ─────────────────────────────────────────────────────────────────
-# ABA 8: INFLAÇÃO
+# ABA 9: INFLAÇÃO
 # ─────────────────────────────────────────────────────────────────
-with tabs[7]:
+with tabs[8]:
     ipca = bcb_sgs(13522); igpm = bcb_sgs(189); cpi = get_cpi()
 
     # IPCA mensal — largura total (maior)
@@ -930,9 +930,9 @@ with tabs[7]:
         st.markdown("**CPI EUA — YoY %**"); st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CFG)
 
 # ─────────────────────────────────────────────────────────────────
-# ABA 9: FLUXO B3
+# ABA 5: FLUXO B3
 # ─────────────────────────────────────────────────────────────────
-with tabs[8]:
+with tabs[4]:
     st.markdown(
         '''<div style="background:rgba(56,189,248,.08);border:1px solid rgba(56,189,248,.25);
         border-radius:10px;padding:14px 18px;margin-bottom:12px;font-size:13px;color:#94a3b8;line-height:1.7">
