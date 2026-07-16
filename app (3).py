@@ -734,6 +734,7 @@ with tabs[2]:
                 line=dict(color=COLORS["blue"], width=2),
                 hovertemplate="%{y:,.0f} pts<extra>IBOV</extra>"
             ))
+            add_last_price(fig, ibov_df, dec=0)
             st.markdown("**IBOVESPA + Volume**")
             st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CFG)
         else:
@@ -896,7 +897,6 @@ with tabs[7]:
         fig = mk_fig(height=260, yaxis=yax(ticksuffix="%", dtick=0.5))
         for df,nome,cor,dash in [(t2y,"T-2Y",COLORS["slate"],"dot"),(t5y,"T-5Y",COLORS["sky"],"solid"),(t10y,"T-10Y",COLORS["blue"],"solid"),(t30y,"T-30Y",COLORS["purple"],"dash")]:
             if df is not None: fig.add_trace(go.Scatter(x=df.index, y=df["Close"], name=nome, mode="lines", line=dict(color=cor, width=2, dash=dash)))
-        if t10y is not None: add_last_price(fig, t10y, suffix="%", dec=2)
         st.markdown("**Treasuries EUA**"); st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CFG)
 
     c1, c2 = st.columns(2)
@@ -942,7 +942,6 @@ with tabs[8]:
         colors = [COLORS["red"] if v > 0 else COLORS["green"] for v in ipca["valor"]]
         fig.add_trace(go.Bar(x=ipca["data"], y=ipca["valor"],
                              name="IPCA mensal", marker_color=colors))
-    if ipca is not None: add_last_price(fig, ipca.set_index("data"), col="valor", suffix="%", dec=2)
     st.markdown("**IPCA YoY — Brasil**")
     st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CFG)
 
@@ -957,7 +956,8 @@ with tabs[8]:
         fig = mk_fig(height=280, yaxis=yax(ticksuffix="%"))
         if cpi is not None:
             colors = [COLORS["red"] if v > 3 else COLORS["amber"] if v > 2 else COLORS["green"] for v in cpi["valor"]]
-            fig.add_trace(go.Bar(x=cpi["data"], y=cpi["valor"], name="CPI YoY %", marker_color=colors))
+            fig.add_trace(go.Bar(x=cpi["data"], y=cpi["valor"], name="CPI YoY %", marker_color=colors,
+                        hovertemplate="%{x}: %{y:.2f}%<extra>CPI EUA</extra>"))
             if len(cpi) > 1:
                 fig.add_hline(y=2, line=dict(color=COLORS["blue"], dash="dash", width=1.5), annotation_text="Meta Fed 2%")
         st.markdown("**CPI EUA — YoY %**"); st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CFG)
@@ -2081,8 +2081,9 @@ Seja preciso, objetivo e use os dados reais fornecidos. Agenda deve ter os princ
                     f'border-bottom:1px solid #1e3a6e">{title}</div>')
 
         cenario = d.get("cenario_geral","")
+        # Layout: 2 colunas simétricas (Cenário+Temas | Agenda via expander depois)
         main_html = f"""
-<div style="display:grid;grid-template-columns:2fr 2fr 1.5fr;gap:14px;align-items:start">
+<div style="display:grid;grid-template-columns:1fr;gap:14px;align-items:start;margin-bottom:16px">
   <div>
     {sec("📋 Cenário Geral")}
     <div style="background:#0f2044;border:1px solid #1e3a6e;border-radius:9px;
@@ -2092,16 +2093,38 @@ Seja preciso, objetivo e use os dados reais fornecidos. Agenda deve ter os princ
     {sec("🔍 Principais Temas")}
     {temas_html}
   </div>
-  <div>
-    {sec("📅 Agenda do Dia")}
-    {agenda_html}
-  </div>
-  <div>
-    {sec("🎯 Viés por Ativo")}
-    {vieses_html}
-  </div>
 </div>"""
         st.markdown(main_html, unsafe_allow_html=True)
+
+        # Agenda do Dia como expander (clicável)
+        with st.expander("📅 Agenda do Dia — clique para ver"):
+            st.markdown(agenda_html, unsafe_allow_html=True)
+
+        # Viés por ativo — horizontal, simétrico, abaixo do resto
+        vieses = d.get("vieses", [])
+        if vieses:
+            st.markdown(
+                f'<div style="font-size:10px;font-weight:800;color:#38bdf8;'+
+                f'text-transform:uppercase;letter-spacing:.08em;'+
+                f'margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid #1e3a6e">'+
+                f'🎯 Viés por Ativo</div>',
+                unsafe_allow_html=True)
+            n = len(vieses)
+            cols_v = st.columns(n)
+            for col, v in zip(cols_v, vieses):
+                dir_ = v.get("direcao","neutro")
+                arrow = "▲" if dir_ == "alta" else "▼" if dir_ == "baixa" else "→"
+                acor  = "#4ade80" if dir_ == "alta" else "#f87171" if dir_ == "baixa" else "#fbbf24"
+                with col:
+                    st.markdown(
+                        f'<div style="background:#0f2044;border:1px solid #1e3a6e;'+
+                        f'border-top:2px solid {acor};border-radius:8px;'+
+                        f'padding:10px 12px;text-align:center">'+
+                        f'<div style="font-size:20px;font-weight:900;color:{acor};margin-bottom:4px">{arrow}</div>'+
+                        f'<div style="font-size:12px;color:#e2e8f5;font-weight:700;margin-bottom:3px">{v.get("ativo","")}</div>'+
+                        f'<div style="font-size:11px;color:#64748b;line-height:1.4">{v.get("motivo","")}</div>'+
+                        f'</div>',
+                        unsafe_allow_html=True)
 
         # ── Resumo final ──────────────────────────────────────────
         st.markdown("<div style='margin:8px 0'></div>", unsafe_allow_html=True)
