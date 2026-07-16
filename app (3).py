@@ -448,6 +448,29 @@ _HEX_FILL = {
 def fill_color(hex_color):
     return _HEX_FILL.get(hex_color, "rgba(56,189,248,0.08)")
 
+def _render_cell(val, col, right_cols):
+    """Renderiza célula HTML com cores e bandeiras."""
+    import re as _re
+    align = "right" if col in right_cols else "left"
+    color = ""
+    if isinstance(val, str):
+        if val.startswith("▲"): color = "color:#4ade80;font-weight:600;"
+        elif val.startswith("▼"): color = "color:#f87171;font-weight:600;"
+    style = f"padding:10px 14px;border-bottom:1px solid #1e3a6e;text-align:{align};font-size:12px;white-space:nowrap;{color}"
+
+    # Detectar padrão "XX  Nome" para renderizar bandeira
+    display = str(val) if val is not None else "—"
+    if col == "Ativo" and isinstance(val, str):
+        m = _re.match(r"^([A-Z]{2})  (.+)$", val)
+        if m:
+            cc  = m.group(1).lower()
+            nom = m.group(2)
+            flag_url = f"https://flagcdn.com/16x12/{cc}.png"
+            display = (f'<img src="{flag_url}" width="16" height="12" '+
+                       f'style="margin-right:8px;vertical-align:middle;border-radius:2px">'+
+                       f'<span style="vertical-align:middle">{nom}</span>')
+    return f'<td style="{style}">{display}</td>'
+
 def render_table(rows):
     """Tabela HTML estilizada no tema escuro."""
     if not rows: return
@@ -455,14 +478,6 @@ def render_table(rows):
     right = {"Último","Dia","1M","Ano","Máx 52s","Mín 52s",
              "Estrangeiro","Institucional","Pessoa Física","Inst. Financeira",
              "Outros","Saldo","IBOVESPA"}
-
-    def cell_style(val, col):
-        align = "right" if col in right else "left"
-        color = ""
-        if isinstance(val, str):
-            if val.startswith("▲"): color = "color:#4ade80;font-weight:600;"
-            elif val.startswith("▼"): color = "color:#f87171;font-weight:600;"
-        return f"padding:10px 14px;border-bottom:1px solid #1e3a6e;text-align:{align};font-size:12px;white-space:nowrap;{color}"
 
     th = "".join(
         f'<th style="background:#162554;color:#38bdf8;font-size:10px;font-weight:700;'+
@@ -474,9 +489,7 @@ def render_table(rows):
     trs = ""
     for i, row in enumerate(rows):
         bg = "#0f2044" if i % 2 == 0 else "#0a1832"
-        tds = "".join(
-            f'<td style="{cell_style(row.get(c,""), c)}">{row.get(c,"—")}</td>'
-            for c in cols)
+        tds = "".join(_render_cell(row.get(c,"—"), c, right) for c in cols)
         trs += f'<tr style="background:{bg}">{tds}</tr>'
 
     st.markdown(
@@ -795,18 +808,18 @@ with tabs[2]:
     # Tabela
     st.markdown("**Índices Globais**")
     indices = [
-        ("^BVSP",      "🇧🇷 IBOVESPA",           0, ""),
-        ("^GSPC",      "🇺🇸 S&P 500",             0, ""),
-        ("^NDX",       "🇺🇸 Nasdaq 100",          0, ""),
-        ("^DJI",       "🇺🇸 Dow Jones",           0, ""),
-        ("^VIX",       "🇺🇸 VIX",                 2, ""),
-        ("^N225",      "🇯🇵 Nikkei 225",          0, ""),
-        ("^GDAXI",     "🇩🇪 DAX",                 0, ""),
-        ("^FTSE",      "🇬🇧 FTSE 100",            0, ""),
-        ("000001.SS",  "🇨🇳 Shanghai Composite", 2, ""),
-        ("^HSI",       "🇭🇰 Hang Seng",           0, ""),
-        ("^FCHI",      "🇫🇷 CAC 40",              0, ""),
-        ("^MXX",       "🇲🇽 IPC México",          0, ""),
+        ("^BVSP",      "BR  IBOVESPA",           0, ""),
+        ("^GSPC",      "US  S&P 500",             0, ""),
+        ("^NDX",       "US  Nasdaq 100",          0, ""),
+        ("^DJI",       "US  Dow Jones",           0, ""),
+        ("^VIX",       "US  VIX",                 2, ""),
+        ("^N225",      "JP  Nikkei 225",          0, ""),
+        ("^GDAXI",     "DE  DAX",                 0, ""),
+        ("^FTSE",      "GB  FTSE 100",            0, ""),
+        ("000001.SS",  "CN  Shanghai Composite",  2, ""),
+        ("^HSI",       "HK  Hang Seng",           0, ""),
+        ("^FCHI",      "FR  CAC 40",              0, ""),
+        ("^MXX",       "MX  IPC México",          0, ""),
     ]
     rows_all = [tbl_row(s, n, d, p) for s, n, d, p in indices]
     render_table(rows_all)
