@@ -380,7 +380,6 @@ DARK_LAY = dict(
     hovermode="x unified",
     hoverlabel=dict(bgcolor="#060e1f", font=dict(color="#e2e8f5", size=11),
                     bordercolor="#38bdf8"),
-    hoverformat=",.2f",
     margin=dict(t=30, r=14, b=40, l=52),
 )
 
