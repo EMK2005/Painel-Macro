@@ -380,6 +380,7 @@ DARK_LAY = dict(
     hovermode="x unified",
     hoverlabel=dict(bgcolor="#060e1f", font=dict(color="#e2e8f5", size=11),
                     bordercolor="#38bdf8"),
+    hoverformat=",.2f",
     margin=dict(t=30, r=14, b=40, l=52),
 )
 
@@ -398,6 +399,27 @@ def mk_fig(**kwargs):
     fig = go.Figure()
     lay = {**DARK_LAY, **kwargs}
     fig.update_layout(**lay)
+    fig.update_layout(hoverlabel_namelength=-1)
+    return fig
+
+def add_last_price(fig, df, col="Close", prefix="", suffix="", dec=2):
+    """Adiciona annotation com o preço atual no final do gráfico."""
+    if df is None or df.empty: return fig
+    s = df[col].dropna()
+    if s.empty: return fig
+    x_last = s.index[-1]
+    y_last = float(s.iloc[-1])
+    label  = f"{prefix}{y_last:,.{dec}f}{suffix}"
+    fig.add_annotation(
+        x=x_last, y=y_last, xref="x", yref="y",
+        text=f"<b>{label}</b>",
+        showarrow=True, arrowhead=2, arrowsize=1,
+        arrowcolor="#38bdf8", arrowwidth=1.5,
+        ax=40, ay=0,
+        font=dict(color="#e2e8f5", size=11, family="-apple-system,sans-serif"),
+        bgcolor="#0a1628", bordercolor="#38bdf8",
+        borderwidth=1, borderpad=4,
+    )
     return fig
 
 PLOTLY_CFG = {"displayModeBar": False, "responsive": True}
@@ -666,6 +688,7 @@ with tabs[0]:
             pad = (s.max() - s.min()) * 0.05
             fig.update_layout(yaxis=yax(range=[s.min() - pad, s.max() + pad]))
             fig.add_trace(go.Scatter(x=usd.index, y=usd["Close"], name="USD/BRL", mode="lines", fill="tozeroy", line=dict(color=COLORS["amber"], width=2), fillcolor="rgba(251,191,36,0.08)"))
+            add_last_price(fig, usd, prefix="R$ ", dec=4)
         st.markdown("**USD/BRL**"); st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CFG)
 
     c1, c2 = st.columns(2)
@@ -683,6 +706,7 @@ with tabs[0]:
                 mode="lines", fill="tozeroy",
                 line=dict(color=COLORS["amber"], width=2),
                 fillcolor="rgba(251,191,36,0.08)"))
+            add_last_price(fig, ouro, prefix="US$ ", dec=0)
         st.markdown("**Ouro (US$/oz)**"); st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CFG)
 
 # ─────────────────────────────────────────────────────────────────
@@ -727,6 +751,7 @@ with tabs[2]:
                 fill="tozeroy", fillcolor="rgba(74,222,128,0.06)",
                 hovertemplate="%{y:,.0f} pts<extra>S&P 500</extra>"
             ))
+            add_last_price(fig, sp_df, dec=0)
             st.markdown("**S&P 500**")
             st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CFG)
         else:
@@ -767,21 +792,23 @@ with tabs[2]:
         if fig: st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CFG)
 
     # Tabela
-    st.markdown("**Resumo**")
-    rows = [tbl_row(s,n) for s,n in [("^BVSP","IBOVESPA"),("^GSPC","S&P 500"),("^NDX","Nasdaq 100"),("^VIX","VIX"),("^DJI","Dow Jones")]]
-    render_table(rows)
-
-    st.markdown("**Índices Internacionais**")
-    rows_intl = [tbl_row(s,n) for s,n in [
-        ("^N225","Nikkei 225 (Japão)"),
-        ("^GDAXI","DAX (Alemanha)"),
-        ("^FTSE","FTSE 100 (Reino Unido)"),
-        ("000001.SS","Shanghai Composite (China)"),
-        ("^HSI","Hang Seng (Hong Kong)"),
-        ("^FCHI","CAC 40 (França)"),
-        ("^MXX","IPC (México)"),
-    ]]
-    render_table(rows_intl)
+    st.markdown("**Índices Globais**")
+    indices = [
+        ("^BVSP",      "🇧🇷 IBOVESPA",           0, ""),
+        ("^GSPC",      "🇺🇸 S&P 500",             0, ""),
+        ("^NDX",       "🇺🇸 Nasdaq 100",          0, ""),
+        ("^DJI",       "🇺🇸 Dow Jones",           0, ""),
+        ("^VIX",       "🇺🇸 VIX",                 2, ""),
+        ("^N225",      "🇯🇵 Nikkei 225",          0, ""),
+        ("^GDAXI",     "🇩🇪 DAX",                 0, ""),
+        ("^FTSE",      "🇬🇧 FTSE 100",            0, ""),
+        ("000001.SS",  "🇨🇳 Shanghai Composite", 2, ""),
+        ("^HSI",       "🇭🇰 Hang Seng",           0, ""),
+        ("^FCHI",      "🇫🇷 CAC 40",              0, ""),
+        ("^MXX",       "🇲🇽 IPC México",          0, ""),
+    ]
+    rows_all = [tbl_row(s, n, d, p) for s, n, d, p in indices]
+    render_table(rows_all)
 
 # ─────────────────────────────────────────────────────────────────
 # ABA 6: CÂMBIO
@@ -859,7 +886,9 @@ with tabs[7]:
     c1, c2 = st.columns(2)
     with c1:
         fig = mk_fig(height=260, yaxis=yax(ticksuffix="%"))
-        if sel is not None: fig.add_trace(go.Scatter(x=sel["data"], y=sel["valor"], name="Selic", mode="lines", fill="tozeroy", line=dict(color=COLORS["red"], width=2), fillcolor="rgba(248,113,113,0.08)"))
+        if sel is not None:
+            fig.add_trace(go.Scatter(x=sel["data"], y=sel["valor"], name="Selic", mode="lines", fill="tozeroy", line=dict(color=COLORS["red"], width=2), fillcolor="rgba(248,113,113,0.08)"))
+            if sel is not None: add_last_price(fig, sel.set_index("data"), col="valor", suffix="%", dec=2)
         st.markdown("**Taxa Selic**"); st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CFG)
     with c2:
         fig = mk_fig(height=260, yaxis=yax(ticksuffix="%", dtick=0.5))
@@ -1976,113 +2005,108 @@ Seja preciso, objetivo e use os dados reais fornecidos. Agenda deve ter os princ
             f'</div></div>',
             unsafe_allow_html=True)
 
-        # ── Cards de destaques por categoria ─────────────────────
+        # ── Cards de destaques ────────────────────────────────────
         destaques = d.get("destaques", [])
         if destaques:
-            cols_d = st.columns(len(destaques))
+            cols_d = st.columns(5)
             for col, dest in zip(cols_d, destaques):
                 with col:
                     st.markdown(
                         f'<div style="background:#0f2044;border:1px solid #1e3a6e;'+
-                        f'border-radius:10px;padding:14px 12px;text-align:center;height:100%">'+
-                        f'<div style="font-size:22px;margin-bottom:6px">{dest.get("icone","")}</div>'+
-                        f'<div style="font-size:10px;color:#38bdf8;font-weight:700;'+
-                        f'text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">'+
+                        f'border-top:2px solid #38bdf8;border-radius:10px;'+
+                        f'padding:16px 14px;text-align:center;min-height:120px;'+
+                        f'display:flex;flex-direction:column;align-items:center;justify-content:center">'+
+                        f'<div style="font-size:24px;margin-bottom:8px">{dest.get("icone","")}</div>'+
+                        f'<div style="font-size:10px;color:#38bdf8;font-weight:800;'+
+                        f'text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px">'+
                         f'{dest.get("categoria","")}</div>'+
-                        f'<div style="font-size:11px;color:#94a3b8;line-height:1.5">'+
+                        f'<div style="font-size:12px;color:#94a3b8;line-height:1.5">'+
                         f'{dest.get("texto","")}</div></div>',
                         unsafe_allow_html=True)
 
-        st.markdown("<br>", unsafe_allow_html=True)
+        st.markdown("<div style='margin:20px 0'></div>", unsafe_allow_html=True)
 
-        # ── Cenário geral + Temas principais ─────────────────────
-        c_esq, c_dir = st.columns([3, 2])
+        # ── Layout principal: 3 colunas simétricas ────────────────
+        c1, c2, c3 = st.columns([2, 2, 1.5])
 
-        with c_esq:
-            st.markdown(
-                '<div style="font-size:13px;font-weight:700;color:#38bdf8;'+
-                'text-transform:uppercase;letter-spacing:.07em;margin-bottom:10px">📋 Cenário Geral</div>',
-                unsafe_allow_html=True)
+        with c1:
+            def section_title(t):
+                st.markdown(
+                    f'<div style="font-size:11px;font-weight:800;color:#38bdf8;'+
+                    f'text-transform:uppercase;letter-spacing:.08em;'+
+                    f'margin-bottom:10px;padding-bottom:6px;'+
+                    f'border-bottom:1px solid #1e3a6e">{t}</div>',
+                    unsafe_allow_html=True)
+
+            section_title("📋 Cenário Geral")
             st.markdown(
                 f'<div style="background:#0f2044;border:1px solid #1e3a6e;'+
                 f'border-radius:10px;padding:16px 18px;font-size:13px;'+
-                f'color:#cbd5e1;line-height:1.7">{d.get("cenario_geral","")}</div>',
+                f'color:#cbd5e1;line-height:1.75;margin-bottom:16px">{d.get("cenario_geral","")}</div>',
                 unsafe_allow_html=True)
 
-            st.markdown("<br>", unsafe_allow_html=True)
-            st.markdown(
-                '<div style="font-size:13px;font-weight:700;color:#38bdf8;'+
-                'text-transform:uppercase;letter-spacing:.07em;margin-bottom:10px">🔍 Principais Temas</div>',
-                unsafe_allow_html=True)
+            section_title("🔍 Principais Temas")
             for tema in d.get("temas_principais", []):
                 st.markdown(
                     f'<div style="background:#0f2044;border:1px solid #1e3a6e;'+
                     f'border-left:3px solid #38bdf8;border-radius:8px;'+
                     f'padding:12px 16px;margin-bottom:8px">'+
-                    f'<div style="font-size:12px;font-weight:700;color:#e2e8f5;margin-bottom:4px">'+
+                    f'<div style="font-size:13px;font-weight:700;color:#e2e8f5;margin-bottom:5px">'+
                     f'{tema.get("tema","")}</div>'+
-                    f'<div style="font-size:12px;color:#94a3b8;line-height:1.6">'+
+                    f'<div style="font-size:12px;color:#94a3b8;line-height:1.65">'+
                     f'{tema.get("descricao","")}</div></div>',
                     unsafe_allow_html=True)
 
-        with c_dir:
-            # Agenda econômica
-            st.markdown(
-                '<div style="font-size:13px;font-weight:700;color:#38bdf8;'+
-                'text-transform:uppercase;letter-spacing:.07em;margin-bottom:10px">📅 Agenda do Dia</div>',
-                unsafe_allow_html=True)
+        with c2:
+            section_title("📅 Agenda do Dia")
             agenda = d.get("agenda", [])
-            if agenda:
-                rel_cores = {"alta": "#f87171", "media": "#fbbf24", "baixa": "#64748b"}
-                for ev in agenda:
-                    rel = ev.get("relevancia", "media")
-                    rel_cor = rel_cores.get(rel, "#64748b")
-                    st.markdown(
-                        f'<div style="background:#0f2044;border:1px solid #1e3a6e;'+
-                        f'border-radius:8px;padding:10px 14px;margin-bottom:6px;'+
-                        f'display:flex;align-items:center;gap:10px">'+
-                        f'<div style="font-size:18px">{ev.get("pais","🌐")}</div>'+
-                        f'<div style="flex:1">'+
-                        f'<div style="font-size:12px;color:#e2e8f5;font-weight:600">{ev.get("evento","")}</div>'+
-                        f'<div style="font-size:10px;color:#64748b">{ev.get("hora","")}</div></div>'+
-                        f'<div style="width:6px;height:6px;border-radius:50%;background:{rel_cor};flex-shrink:0"></div>'+
-                        f'</div>',
-                        unsafe_allow_html=True)
-            else:
-                st.markdown('<div style="color:#64748b;font-size:13px">Sem eventos relevantes hoje.</div>',
+            rel_cores = {"alta": "#f87171", "media": "#fbbf24", "baixa": "#475569"}
+            for ev in (agenda or []):
+                rel_cor = rel_cores.get(ev.get("relevancia","media"), "#fbbf24")
+                st.markdown(
+                    f'<div style="background:#0f2044;border:1px solid #1e3a6e;'+
+                    f'border-radius:8px;padding:10px 14px;margin-bottom:6px">'+
+                    f'<div style="display:flex;align-items:center;justify-content:space-between">'+
+                    f'<div style="display:flex;align-items:center;gap:8px">'+
+                    f'<span style="font-size:16px">{ev.get("pais","🌐")}</span>'+
+                    f'<span style="font-size:12px;color:#e2e8f5;font-weight:600">{ev.get("evento","")}</span>'+
+                    f'</div>'+
+                    f'<div style="display:flex;align-items:center;gap:6px">'+
+                    f'<span style="font-size:10px;color:#64748b">{ev.get("hora","")}</span>'+
+                    f'<span style="width:7px;height:7px;border-radius:50%;'+
+                    f'background:{rel_cor};display:inline-block"></span>'+
+                    f'</div></div></div>',
+                    unsafe_allow_html=True)
+            if not agenda:
+                st.markdown('<div style="color:#475569;font-size:12px;padding:8px">Sem eventos relevantes hoje.</div>',
                             unsafe_allow_html=True)
 
-            st.markdown("<br>", unsafe_allow_html=True)
-
-            # Vieses
-            st.markdown(
-                '<div style="font-size:13px;font-weight:700;color:#38bdf8;'+
-                'text-transform:uppercase;letter-spacing:.07em;margin-bottom:10px">🎯 Viés por Ativo</div>',
-                unsafe_allow_html=True)
+        with c3:
+            section_title("🎯 Viés")
             for v in d.get("vieses", []):
                 dir_ = v.get("direcao","neutro")
                 arrow = "▲" if dir_ == "alta" else "▼" if dir_ == "baixa" else "→"
                 acor  = "#4ade80" if dir_ == "alta" else "#f87171" if dir_ == "baixa" else "#fbbf24"
                 st.markdown(
                     f'<div style="background:#0f2044;border:1px solid #1e3a6e;'+
-                    f'border-radius:8px;padding:9px 14px;margin-bottom:6px;'+
-                    f'display:flex;align-items:center;gap:10px">'+
-                    f'<div style="font-size:16px;font-weight:800;color:{acor};width:20px">{arrow}</div>'+
+                    f'border-radius:8px;padding:10px 14px;margin-bottom:6px">'+
+                    f'<div style="display:flex;align-items:center;gap:10px">'+
+                    f'<span style="font-size:18px;font-weight:900;color:{acor}">{arrow}</span>'+
                     f'<div>'+
-                    f'<div style="font-size:12px;color:#e2e8f5;font-weight:600">{v.get("ativo","")}</div>'+
-                    f'<div style="font-size:11px;color:#64748b">{v.get("motivo","")}</div>'+
-                    f'</div></div>',
+                    f'<div style="font-size:12px;color:#e2e8f5;font-weight:700;margin-bottom:2px">{v.get("ativo","")}</div>'+
+                    f'<div style="font-size:11px;color:#64748b;line-height:1.4">{v.get("motivo","")}</div>'+
+                    f'</div></div></div>',
                     unsafe_allow_html=True)
 
         # ── Resumo final ──────────────────────────────────────────
-        st.markdown("<br>", unsafe_allow_html=True)
+        st.markdown("<div style='margin:8px 0'></div>", unsafe_allow_html=True)
         resumo = d.get("resumo_final", "")
         if resumo:
             st.markdown(
                 f'<div style="background:linear-gradient(135deg,#0f2044,#0d1a38);'+
                 f'border:1px solid #38bdf844;border-left:4px solid #38bdf8;'+
-                f'border-radius:10px;padding:16px 20px;font-size:14px;'+
-                f'font-weight:600;color:#e2e8f5;line-height:1.6">💡 {resumo}</div>',
+                f'border-radius:10px;padding:16px 22px;font-size:14px;'+
+                f'font-weight:600;color:#e2e8f5;line-height:1.65">💡 {resumo}</div>',
                 unsafe_allow_html=True)
     else:
         st.info("Clique em 🔄 Gerar novo para criar o briefing do dia.")
