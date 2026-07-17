@@ -31,9 +31,7 @@ st.markdown("""
   /* Header customizado */
   .painel-header {
     display:flex; align-items:center; justify-content:space-between;
-    background:linear-gradient(135deg,#060e1f 0%,#0a1628 50%,#0f2044 100%);
-    border-bottom:1px solid #1e3a6e;
-    padding:14px 0 12px 0; margin-bottom:20px;
+    padding:8px 0 12px 0; margin-bottom:20px;
   }
   .painel-title { font-size:22px; font-weight:800; color:#e2e8f5; letter-spacing:-.01em; }
   .painel-ts    { font-size:12px; color:#64748b; }
