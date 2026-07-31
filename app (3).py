@@ -710,17 +710,6 @@ Seja direto. Não use markdown, apenas texto corrido."""
 
 # ── Renderizar painel de alertas ──────────────────────────────────
 alertas = get_alertas()
-if alertas:
-    st.markdown(
-        f'<div style="background:rgba(251,191,36,.07);border:1px solid rgba(251,191,36,.3);'+
-        f'border-left:4px solid #fbbf24;border-radius:10px;'+
-        f'padding:12px 18px;margin-bottom:16px">'+
-        f'<span style="font-size:12px;font-weight:800;color:#fbbf24;'+
-        f'text-transform:uppercase;letter-spacing:.07em">'+
-        f'⚡ {len(alertas)} ativo{"s" if len(alertas)>1 else ""} com movimentação acima de {ALERT_THRESHOLD:.0f}% hoje</span>'+
-        f'</div>',
-        unsafe_allow_html=True)
-
 tabs = st.tabs(["📊 Resumo", "📋 Briefing", "📉 Bolsa", "💹 Ações", "🌊 Fluxo B3", "💱 Câmbio", "🛢️ Commodities",
                 "📈 Juros", "🔥 Inflação", "📰 Notícias", "🔗 Links"])
 
