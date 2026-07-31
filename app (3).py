@@ -721,6 +721,9 @@ if alertas:
         f'</div>',
         unsafe_allow_html=True)
 
+tabs = st.tabs(["📊 Resumo", "📋 Briefing", "📉 Bolsa", "💹 Ações", "🌊 Fluxo B3", "💱 Câmbio", "🛢️ Commodities",
+                "📈 Juros", "🔥 Inflação", "📰 Notícias", "🔗 Links"])
+
 with tabs[0]:
     # ── Painel de Alertas (>5%) ───────────────────────────────────
     alertas = get_alertas()
