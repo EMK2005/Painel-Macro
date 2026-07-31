@@ -774,6 +774,55 @@ tabs = st.tabs(["📊 Resumo", "📋 Briefing", "📉 Bolsa", "💹 Ações", "�
 # ABA 1: RESUMO
 # ─────────────────────────────────────────────────────────────────
 with tabs[0]:
+    # ── Painel de Alertas (>5%) ───────────────────────────────────
+    alertas = get_alertas()
+    if alertas:
+        items_html = "  ".join(
+            f'<span style="display:inline-flex;align-items:center;gap:5px;'+
+            f'background:#0f2044;border:1px solid {"#4ade80" if a["chg"]>0 else "#f87171"}44;'+
+            f'border-radius:6px;padding:4px 10px;font-size:12px">'+
+            f'<span style="color:{"#4ade80" if a["chg"]>0 else "#f87171"};font-weight:700">'+
+            f'{"▲" if a["chg"]>0 else "▼"} {abs(a["chg"]):.2f}%</span>'+
+            f'<span style="color:#94a3b8">{a["nome"]}</span></span>'
+            for a in alertas
+        )
+        st.markdown(
+            f'<div style="background:rgba(251,191,36,.06);border:1px solid rgba(251,191,36,.2);'+
+            f'border-radius:8px;padding:8px 14px;margin-bottom:14px;'+
+            f'display:flex;align-items:center;gap:10px;flex-wrap:wrap">'+
+            f'<span style="font-size:11px;font-weight:800;color:#fbbf24;'+
+            f'white-space:nowrap">⚡ Alertas +5%</span>{items_html}</div>',
+            unsafe_allow_html=True)
+        # Botão de análise para cada alerta
+        if any(f"alert_txt_{a['sym']}" in st.session_state for a in alertas):
+            for al in alertas:
+                key_txt = f"alert_txt_{al['sym']}"
+                if key_txt in st.session_state:
+                    cor = "#4ade80" if al["chg"]>0 else "#f87171"
+                    c1,c2 = st.columns([11,1])
+                    with c1:
+                        st.markdown(
+                            f'<div style="background:#0f2044;border-left:3px solid {cor};'+
+                            f'border-radius:0 8px 8px 0;border:1px solid {cor}33;'+
+                            f'padding:10px 14px;margin-bottom:6px;font-size:12px;color:#cbd5e1;line-height:1.6">'+
+                            f'<b style="color:{cor}">🤖 {al["nome"]} {"▲" if al["chg"]>0 else "▼"} {al["chg"]:+.2f}%</b><br>'+
+                            f'{st.session_state[key_txt]}</div>',
+                            unsafe_allow_html=True)
+                    with c2:
+                        if st.button("✕", key=f"close_{al['sym']}"):
+                            del st.session_state[key_txt]; st.rerun()
+        # Botões por quê (em expander para não ocupar espaço)
+        with st.expander("🤖 Analisar movimentações"):
+            cols_btn = st.columns(min(len(alertas), 5))
+            for col, al in zip(cols_btn, alertas):
+                cor = "#4ade80" if al["chg"]>0 else "#f87171"
+                with col:
+                    if st.button(f"{'▲' if al['chg']>0 else '▼'} {al['nome']}", key=f"alert_btn_{al['sym']}"):
+                        with st.spinner(f"Analisando {al['nome']}..."):
+                            st.session_state[f"alert_txt_{al['sym']}"] = gerar_analise_alerta(
+                                al["sym"], al["nome"], al["chg"], al["preco"])
+                        st.rerun()
+
     st.markdown("#### Bolsa")
     c1,c2,c3,c4,c5 = st.columns(5)
     with c1: mcard("IBOVESPA", "^BVSP")
