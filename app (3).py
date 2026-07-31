@@ -815,9 +815,8 @@ with tabs[0]:
         with st.expander("🤖 Analisar movimentações"):
             cols_btn = st.columns(min(len(alertas), 5))
             for col, al in zip(cols_btn, alertas):
-                cor = "#4ade80" if al["chg"]>0 else "#f87171"
                 with col:
-                    if st.button(f"{'▲' if al['chg']>0 else '▼'} {al['nome']}", key=f"alert_btn_{al['sym']}"):
+                    if st.button(f"{'▲' if al['chg']>0 else '▼'} {al['nome']}", key=f"analisa_{al['sym']}"):
                         with st.spinner(f"Analisando {al['nome']}..."):
                             st.session_state[f"alert_txt_{al['sym']}"] = gerar_analise_alerta(
                                 al["sym"], al["nome"], al["chg"], al["preco"])
