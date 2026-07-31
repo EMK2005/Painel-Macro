@@ -694,17 +694,33 @@ def gerar_analise_alerta(sym, nome, chg, preco):
         if not api_key: return "⚠️ API key não configurada."
         direcao = "alta" if chg > 0 else "queda"
         prompt = f"""O ativo {sym} ({nome}) está com variação de {chg:+.2f}% hoje, negociando a {preco:.2f}.
-Esta é uma movimentação extrema (>5% em um dia).
 
-Em 3-4 frases objetivas, explique os possíveis motivos desta {direcao} expressiva.
-Considere: resultados corporativos, notícias macro, geopolítica, fluxo de capital, técnico.
-Seja direto. Não use markdown, apenas texto corrido."""
+Retorne SOMENTE um JSON válido com esta estrutura:
+{{
+  "emoji": "📈" ou "📉",
+  "resumo": "1 frase direta explicando o movimento",
+  "motivos": ["motivo 1 curto", "motivo 2 curto", "motivo 3 curto"],
+  "atencao": "1 ponto de atenção ou risco"
+}}
+
+Seja extremamente conciso. Cada motivo deve ter no máximo 8 palavras."""
         client = anthropic.Anthropic(api_key=api_key)
         msg = client.messages.create(
-            model="claude-sonnet-4-5", max_tokens=300,
+            model="claude-sonnet-4-5", max_tokens=200,
             messages=[{"role":"user","content":prompt}]
         )
-        return msg.content[0].text
+        import json as _j
+        texto = msg.content[0].text.strip()
+        if texto.startswith("```"): texto = texto.split("\n",1)[1]
+        if texto.endswith("```"):   texto = texto.rsplit("\n",1)[0]
+        dados = _j.loads(texto.strip())
+        motivos_html = "".join(f'<div style="display:flex;gap:6px;margin-bottom:3px"><span style="color:#38bdf8">•</span><span>{m}</span></div>' for m in dados.get("motivos",[]))
+        return (
+            f'<div style="font-size:13px;font-weight:600;color:#e2e8f5;margin-bottom:8px">'
+            f'{dados.get("emoji","")} {dados.get("resumo","")}</div>'
+            f'<div style="font-size:12px;color:#94a3b8;margin-bottom:8px">{motivos_html}</div>'
+            f'<div style="font-size:11px;color:#fbbf24">⚠ {dados.get("atencao","")}</div>'
+        )
     except Exception as e:
         return f"Erro: {e}"
 
@@ -744,8 +760,7 @@ with tabs[0]:
                         st.markdown(
                             f'<div style="background:#0f2044;border-left:3px solid {cor};'+
                             f'border-radius:0 8px 8px 0;border:1px solid {cor}33;'+
-                            f'padding:10px 14px;margin-bottom:6px;font-size:12px;color:#cbd5e1;line-height:1.6">'+
-                            f'<b style="color:{cor}">🤖 {al["nome"]} {"▲" if al["chg"]>0 else "▼"} {al["chg"]:+.2f}%</b><br>'+
+                            f'padding:12px 16px;margin-bottom:6px">'+
                             f'{st.session_state[key_txt]}</div>',
                             unsafe_allow_html=True)
                     with c2:
