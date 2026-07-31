@@ -721,58 +721,6 @@ if alertas:
         f'</div>',
         unsafe_allow_html=True)
 
-    cols_a = st.columns(min(len(alertas), 4))
-    for col, al in zip(cols_a, alertas[:4]):
-        cor  = "#4ade80" if al["chg"] > 0 else "#f87171"
-        arr  = "▲" if al["chg"] > 0 else "▼"
-        key_btn = f"alert_btn_{al['sym']}"
-        key_txt = f"alert_txt_{al['sym']}"
-        with col:
-            st.markdown(
-                f'<div style="background:#0f2044;border:1px solid {cor}44;'+
-                f'border-top:3px solid {cor};border-radius:10px;padding:12px 14px">'+
-                f'<div style="font-size:11px;color:#64748b;font-weight:700;'+
-                f'text-transform:uppercase;margin-bottom:4px">{al["nome"]}</div>'+
-                f'<div style="font-size:18px;font-weight:800;color:{cor}">'+
-                f'{arr} {abs(al["chg"]):.2f}%</div>'+
-                f'<div style="font-size:11px;color:#94a3b8">R$ {al["preco"]:.2f}</div>'+
-                f'</div>',
-                unsafe_allow_html=True)
-            if st.button("🤖 Por quê?", key=key_btn, use_container_width=True):
-                if key_txt not in st.session_state:
-                    with st.spinner(f"Analisando {al['nome']}..."):
-                        st.session_state[key_txt] = gerar_analise_alerta(
-                            al["sym"], al["nome"], al["chg"], al["preco"])
-                st.rerun()
-
-    # Mostrar análises abertas
-    for al in alertas[:4]:
-        key_txt = f"alert_txt_{al['sym']}"
-        if key_txt in st.session_state:
-            cor = "#4ade80" if al["chg"] > 0 else "#f87171"
-            arr = "▲" if al["chg"] > 0 else "▼"
-            c1, c2 = st.columns([9,1])
-            with c1:
-                st.markdown(
-                    f'<div style="background:#0f2044;border:1px solid {cor}33;'+
-                    f'border-left:3px solid {cor};border-radius:8px;'+
-                    f'padding:12px 16px;margin-top:6px">'+
-                    f'<div style="font-size:11px;font-weight:700;color:{cor};margin-bottom:6px">'+
-                    f'🤖 {al["nome"]} {arr} {al["chg"]:+.2f}%</div>'+
-                    f'<div style="font-size:13px;color:#cbd5e1;line-height:1.7">'+
-                    f'{st.session_state[key_txt]}</div></div>',
-                    unsafe_allow_html=True)
-            with c2:
-                if st.button("✕", key=f"close_{al['sym']}"):
-                    del st.session_state[key_txt]
-                    st.rerun()
-
-tabs = st.tabs(["📊 Resumo", "📋 Briefing", "📉 Bolsa", "💹 Ações", "🌊 Fluxo B3", "💱 Câmbio", "🛢️ Commodities",
-                "📈 Juros", "🔥 Inflação", "📰 Notícias", "🔗 Links"])
-
-# ─────────────────────────────────────────────────────────────────
-# ABA 1: RESUMO
-# ─────────────────────────────────────────────────────────────────
 with tabs[0]:
     # ── Painel de Alertas (>5%) ───────────────────────────────────
     alertas = get_alertas()
