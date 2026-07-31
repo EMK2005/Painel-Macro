@@ -399,14 +399,21 @@ def mk_fig(**kwargs):
     fig.update_layout(hoverlabel_namelength=-1)
     return fig
 
-def add_last_price(fig, df, col="Close", prefix="", suffix="", dec=2):
-    """Adiciona annotation com o preço atual no final do gráfico."""
+def add_last_price(fig, df, col="Close", prefix="", suffix="", dec=2, sym=None):
+    """Adiciona annotation com o preço atual (real-time via fast_info) no final do gráfico."""
     if df is None or df.empty: return fig
     s = df[col].dropna()
     if s.empty: return fig
     x_last = s.index[-1]
-    y_last = float(s.iloc[-1])
-    label  = f"{prefix}{y_last:,.{dec}f}{suffix}"
+    # Usar preço em tempo real se sym fornecido
+    if sym:
+        info = yf_info(sym)
+        y_last = info.get("price") if info else None
+        if not y_last or y_last <= 0:
+            y_last = float(s.iloc[-1])
+    else:
+        y_last = float(s.iloc[-1])
+    label = f"{prefix}{y_last:,.{dec}f}{suffix}"
     fig.add_annotation(
         x=x_last, y=y_last, xref="x", yref="y",
         text=f"<b>{label}</b>",
@@ -636,6 +643,118 @@ st.markdown(f"""
 # ══════════════════════════════════════════════════════════════════
 #  ABAS
 # ══════════════════════════════════════════════════════════════════
+
+# ══════════════════════════════════════════════════════════════════
+#  PAINEL DE ALERTAS (>5% no dia) — aparece acima das abas
+# ══════════════════════════════════════════════════════════════════
+_ALERT_SYMBOLS = {
+    # Bolsas
+    "^BVSP":"IBOVESPA","^GSPC":"S&P 500","^NDX":"Nasdaq","^VIX":"VIX","^DJI":"Dow Jones",
+    # Câmbio
+    "BRL=X":"USD/BRL","EURBRL=X":"EUR/BRL","DX-Y.NYB":"DXY","BTC-USD":"Bitcoin",
+    # Commodities
+    "CL=F":"WTI","BZ=F":"Brent","GC=F":"Ouro","ZS=F":"Soja","HG=F":"Cobre",
+    # Ações B3
+    "WEGE3.SA":"WEG","BPAC11.SA":"BTG","VALE3.SA":"Vale","GGBR4.SA":"Gerdau",
+    "BBAS3.SA":"BB","PETR4.SA":"Petrobras","ITUB4.SA":"Itaú","ABEV3.SA":"Ambev",
+    "BBDC4.SA":"Bradesco","ITSA4.SA":"Itaúsa","ECOR3.SA":"Ecorodovias",
+}
+ALERT_THRESHOLD = 5.0  # %
+
+@st.cache_data(ttl=300, show_spinner=False)
+def get_alertas():
+    alertas = []
+    for sym, nome in _ALERT_SYMBOLS.items():
+        info = yf_info(sym)
+        if info and info.get("chg") is not None:
+            chg = info["chg"]
+            if abs(chg) >= ALERT_THRESHOLD:
+                alertas.append({
+                    "sym": sym, "nome": nome,
+                    "preco": info["price"], "chg": chg,
+                })
+    return sorted(alertas, key=lambda x: abs(x["chg"]), reverse=True)
+
+def gerar_analise_alerta(sym, nome, chg, preco):
+    """Gera análise rápida via IA sobre a movimentação extrema."""
+    try:
+        api_key = st.secrets.get("ANTHROPIC_API_KEY","")
+        if not api_key: return "⚠️ API key não configurada."
+        direcao = "alta" if chg > 0 else "queda"
+        prompt = f"""O ativo {sym} ({nome}) está com variação de {chg:+.2f}% hoje, negociando a {preco:.2f}.
+Esta é uma movimentação extrema (>5% em um dia).
+
+Em 3-4 frases objetivas, explique os possíveis motivos desta {direcao} expressiva.
+Considere: resultados corporativos, notícias macro, geopolítica, fluxo de capital, técnico.
+Seja direto. Não use markdown, apenas texto corrido."""
+        client = anthropic.Anthropic(api_key=api_key)
+        msg = client.messages.create(
+            model="claude-sonnet-4-5", max_tokens=300,
+            messages=[{"role":"user","content":prompt}]
+        )
+        return msg.content[0].text
+    except Exception as e:
+        return f"Erro: {e}"
+
+# ── Renderizar painel de alertas ──────────────────────────────────
+alertas = get_alertas()
+if alertas:
+    st.markdown(
+        f'<div style="background:rgba(251,191,36,.07);border:1px solid rgba(251,191,36,.3);'+
+        f'border-left:4px solid #fbbf24;border-radius:10px;'+
+        f'padding:12px 18px;margin-bottom:16px">'+
+        f'<span style="font-size:12px;font-weight:800;color:#fbbf24;'+
+        f'text-transform:uppercase;letter-spacing:.07em">'+
+        f'⚡ {len(alertas)} ativo{"s" if len(alertas)>1 else ""} com movimentação acima de {ALERT_THRESHOLD:.0f}% hoje</span>'+
+        f'</div>',
+        unsafe_allow_html=True)
+
+    cols_a = st.columns(min(len(alertas), 4))
+    for col, al in zip(cols_a, alertas[:4]):
+        cor  = "#4ade80" if al["chg"] > 0 else "#f87171"
+        arr  = "▲" if al["chg"] > 0 else "▼"
+        key_btn = f"alert_btn_{al['sym']}"
+        key_txt = f"alert_txt_{al['sym']}"
+        with col:
+            st.markdown(
+                f'<div style="background:#0f2044;border:1px solid {cor}44;'+
+                f'border-top:3px solid {cor};border-radius:10px;padding:12px 14px">'+
+                f'<div style="font-size:11px;color:#64748b;font-weight:700;'+
+                f'text-transform:uppercase;margin-bottom:4px">{al["nome"]}</div>'+
+                f'<div style="font-size:18px;font-weight:800;color:{cor}">'+
+                f'{arr} {abs(al["chg"]):.2f}%</div>'+
+                f'<div style="font-size:11px;color:#94a3b8">R$ {al["preco"]:.2f}</div>'+
+                f'</div>',
+                unsafe_allow_html=True)
+            if st.button("🤖 Por quê?", key=key_btn, use_container_width=True):
+                if key_txt not in st.session_state:
+                    with st.spinner(f"Analisando {al['nome']}..."):
+                        st.session_state[key_txt] = gerar_analise_alerta(
+                            al["sym"], al["nome"], al["chg"], al["preco"])
+                st.rerun()
+
+    # Mostrar análises abertas
+    for al in alertas[:4]:
+        key_txt = f"alert_txt_{al['sym']}"
+        if key_txt in st.session_state:
+            cor = "#4ade80" if al["chg"] > 0 else "#f87171"
+            arr = "▲" if al["chg"] > 0 else "▼"
+            c1, c2 = st.columns([9,1])
+            with c1:
+                st.markdown(
+                    f'<div style="background:#0f2044;border:1px solid {cor}33;'+
+                    f'border-left:3px solid {cor};border-radius:8px;'+
+                    f'padding:12px 16px;margin-top:6px">'+
+                    f'<div style="font-size:11px;font-weight:700;color:{cor};margin-bottom:6px">'+
+                    f'🤖 {al["nome"]} {arr} {al["chg"]:+.2f}%</div>'+
+                    f'<div style="font-size:13px;color:#cbd5e1;line-height:1.7">'+
+                    f'{st.session_state[key_txt]}</div></div>',
+                    unsafe_allow_html=True)
+            with c2:
+                if st.button("✕", key=f"close_{al['sym']}"):
+                    del st.session_state[key_txt]
+                    st.rerun()
+
 tabs = st.tabs(["📊 Resumo", "📋 Briefing", "📉 Bolsa", "💹 Ações", "🌊 Fluxo B3", "💱 Câmbio", "🛢️ Commodities",
                 "📈 Juros", "🔥 Inflação", "📰 Notícias", "🔗 Links"])
 
@@ -698,7 +817,7 @@ with tabs[0]:
             pad = (s.max() - s.min()) * 0.05
             fig.update_layout(yaxis=yax(range=[s.min() - pad, s.max() + pad]))
             fig.add_trace(go.Scatter(x=usd.index, y=usd["Close"], name="USD/BRL", mode="lines", fill="tozeroy", line=dict(color=COLORS["amber"], width=2), fillcolor="rgba(251,191,36,0.08)"))
-            add_last_price(fig, usd, prefix="R$ ", dec=2)
+            add_last_price(fig, usd, prefix="R$ ", dec=2, sym="BRL=X")
         st.markdown("**USD/BRL**"); st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CFG)
 
     c1, c2 = st.columns(2)
@@ -716,7 +835,7 @@ with tabs[0]:
                 mode="lines", fill="tozeroy",
                 line=dict(color=COLORS["amber"], width=2),
                 fillcolor="rgba(251,191,36,0.08)"))
-            add_last_price(fig, ouro, prefix="US$ ", dec=2)
+            add_last_price(fig, ouro, prefix="US$ ", dec=2, sym="GC=F")
         st.markdown("**Ouro (US$/oz)**"); st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CFG)
 
 # ─────────────────────────────────────────────────────────────────
@@ -745,7 +864,7 @@ with tabs[2]:
                 line=dict(color=COLORS["blue"], width=2),
                 hovertemplate="%{y:,.0f} pts<extra>IBOV</extra>"
             ))
-            add_last_price(fig, ibov_df, dec=0)
+            add_last_price(fig, ibov_df, dec=0, sym="^BVSP")
             st.markdown("**IBOVESPA + Volume**")
             st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CFG)
         else:
@@ -762,7 +881,7 @@ with tabs[2]:
                 fill="tozeroy", fillcolor="rgba(74,222,128,0.06)",
                 hovertemplate="%{y:,.0f} pts<extra>S&P 500</extra>"
             ))
-            add_last_price(fig, sp_df, dec=2)
+            add_last_price(fig, sp_df, dec=2, sym="^GSPC")
             st.markdown("**S&P 500**")
             st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CFG)
         else:
@@ -773,7 +892,7 @@ with tabs[2]:
     if vix is not None:
         fig.add_trace(go.Scatter(x=vix.index, y=vix["Close"], name="VIX", mode="lines", fill="tozeroy", line=dict(color=COLORS["red"], width=2), fillcolor="rgba(248,113,113,0.08)"))
         fig.add_hline(y=30, line=dict(color=COLORS["amber"], dash="dash", width=1.5), annotation_text="Zona stress")
-    if vix is not None: add_last_price(fig, vix, dec=2)
+    if vix is not None: add_last_price(fig, vix, dec=2, sym="^VIX")
     st.markdown("**VIX**"); st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CFG)
 
     # ── Heatmaps: IBOV e S&P 500 lado a lado ────────────────────────
@@ -844,12 +963,12 @@ with tabs[5]:
                     fill="tozeroy", line=dict(color=cor, width=2),
                     fillcolor=fill_color(cor)
                 ))
-            add_last_price(fig, df, dec=2)
+            add_last_price(fig, df, dec=2, sym=sym)
             st.markdown(f"**{nome}**"); st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CFG)
 
     st.markdown("**Resumo**")
     rows = [tbl_row(s,n,d,p) for s,n,d,p in [
-        ("BRL=X","USD/BRL",4,"R$ "),("EURBRL=X","EUR/BRL",4,"R$ "),
+        ("BRL=X","USD/BRL",2,"R$ "),("EURBRL=X","EUR/BRL",2,"R$ "),
         ("DX-Y.NYB","DXY",2,""),("BTC-USD","Bitcoin",0,"US$ "),("ETH-USD","Ethereum",2,"US$ ")]]
     render_table(rows)
 
@@ -869,7 +988,7 @@ with tabs[6]:
                 df_clean = df[df["Close"] > 0].copy()
                 fig.add_trace(go.Scatter(x=df_clean.index, y=df_clean["Close"], name=nome, mode="lines",
                     fill="tozeroy", line=dict(color=cor, width=2), fillcolor=fill_color(cor)))
-            add_last_price(fig, df_clean if df is not None else None, dec=2)
+            add_last_price(fig, df_clean if df is not None else None, dec=2, sym=sym)
             st.markdown(f"**{nome}**"); st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CFG)
 
     # Minério de ferro: link direto para SGX
