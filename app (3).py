@@ -649,30 +649,42 @@ st.markdown(f"""
 # ══════════════════════════════════════════════════════════════════
 _ALERT_SYMBOLS = {
     # Bolsas
-    "^BVSP":"IBOVESPA","^GSPC":"S&P 500","^NDX":"Nasdaq","^VIX":"VIX","^DJI":"Dow Jones",
+    "^BVSP":"IBOVESPA","^GSPC":"S&P 500","^NDX":"Nasdaq 100","^VIX":"VIX","^DJI":"Dow Jones",
+    # Índices internacionais
+    "^N225":"Nikkei 225","^GDAXI":"DAX","^FTSE":"FTSE 100","^HSI":"Hang Seng",
     # Câmbio
-    "BRL=X":"USD/BRL","EURBRL=X":"EUR/BRL","DX-Y.NYB":"DXY","BTC-USD":"Bitcoin",
+    "BRL=X":"USD/BRL","EURBRL=X":"EUR/BRL","DX-Y.NYB":"DXY","BTC-USD":"Bitcoin","ETH-USD":"Ethereum",
     # Commodities
     "CL=F":"WTI","BZ=F":"Brent","GC=F":"Ouro","ZS=F":"Soja","HG=F":"Cobre",
-    # Ações B3
+    # Ações B3 — todas as 15 do dashboard
     "WEGE3.SA":"WEG","BPAC11.SA":"BTG","VALE3.SA":"Vale","GGBR4.SA":"Gerdau",
-    "BBAS3.SA":"BB","PETR4.SA":"Petrobras","ITUB4.SA":"Itaú","ABEV3.SA":"Ambev",
+    "BBAS3.SA":"Banco do Brasil","PETR4.SA":"Petrobras","ITUB4.SA":"Itaú",
+    "ABEV3.SA":"Ambev","RENT3.SA":"Localiza","SUZB3.SA":"Suzano",
     "BBDC4.SA":"Bradesco","ITSA4.SA":"Itaúsa","ECOR3.SA":"Ecorodovias",
+    "MGLU3.SA":"Magazine Luiza","EGIE3.SA":"Engie",
 }
 ALERT_THRESHOLD = 5.0  # %
 
-@st.cache_data(ttl=300, show_spinner=False)
+@st.cache_data(ttl=60, show_spinner=False)
 def get_alertas():
+    """Busca variações do dia direto via fast_info, sem depender do cache de yf_info."""
     alertas = []
     for sym, nome in _ALERT_SYMBOLS.items():
-        info = yf_info(sym)
-        if info and info.get("chg") is not None:
-            chg = info["chg"]
+        try:
+            tk  = yf.Ticker(sym)
+            fi  = tk.fast_info
+            p   = fi.last_price or fi.regular_market_price
+            pr  = fi.previous_close
+            if not p or not pr or pr <= 0 or p <= 0:
+                continue
+            chg = (p - pr) / pr * 100
             if abs(chg) >= ALERT_THRESHOLD:
                 alertas.append({
                     "sym": sym, "nome": nome,
-                    "preco": info["price"], "chg": chg,
+                    "preco": p, "chg": chg,
                 })
+        except:
+            continue
     return sorted(alertas, key=lambda x: abs(x["chg"]), reverse=True)
 
 def gerar_analise_alerta(sym, nome, chg, preco):
