@@ -805,7 +805,7 @@ with tabs[0]:
             f'border-radius:8px;padding:8px 14px;margin-bottom:14px;'+
             f'display:flex;align-items:center;gap:10px;flex-wrap:wrap">'+
             f'<span style="font-size:11px;font-weight:800;color:#fbbf24;'+
-            f'white-space:nowrap">⚡ Alertas +5%</span>{items_html}</div>',
+            f'white-space:nowrap">⚡ Alertas ±3%</span>{items_html}</div>',
             unsafe_allow_html=True)
         # Botão de análise para cada alerta
         if any(f"alert_txt_{a['sym']}" in st.session_state for a in alertas):
@@ -1173,8 +1173,7 @@ with tabs[7]:
                 'target="_blank" style="color:#38bdf8">TradingView ↗</a></div>',
                 unsafe_allow_html=True)
     else:
-        st.info("Dados da curva DI indisponíveis no momento. Acesse diretamente: "
-                "[TradingView — Curva DI](https://br.tradingview.com/symbols/BMFBOVESPA-DI11!/forward-curve/)")
+        st.markdown('<div style="font-size:13px;color:#94a3b8;padding:8px 0">📈 <a href="https://br.tradingview.com/symbols/BMFBOVESPA-DI11!/forward-curve/" target="_blank" style="color:#38bdf8;font-weight:600">Curva de Juros Futuros ↗</a></div>', unsafe_allow_html=True)
 
     # Spread 10Y - 2Y
     if t10y is not None and t2y is not None:
@@ -1215,8 +1214,7 @@ with tabs[8]:
             colors = [COLORS["red"] if v > 3 else COLORS["amber"] if v > 2 else COLORS["green"] for v in cpi["valor"]]
             fig.add_trace(go.Bar(x=cpi["data"], y=cpi["valor"], name="CPI YoY %", marker_color=colors,
                         hovertemplate="%{x}: %{y:.2f}%<extra>CPI EUA</extra>"))
-            if len(cpi) > 1:
-                fig.add_hline(y=2, line=dict(color=COLORS["blue"], dash="dash", width=1.5), annotation_text="Meta Fed 2%")
+
         st.markdown("**CPI EUA — YoY %**"); st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CFG)
 
 # ─────────────────────────────────────────────────────────────────
@@ -2278,7 +2276,7 @@ Seja preciso, objetivo e use os dados reais fornecidos. Agenda deve ter os princ
                 f'<div style="font-size:9px;color:#38bdf8;font-weight:800;'+
                 f'text-transform:uppercase;letter-spacing:.07em;margin-bottom:6px">'+
                 f'{dest.get("categoria","")}</div>'+
-                f'<div style="font-size:12px;color:#94a3b8;line-height:1.5">'+
+                f'<div style="font-size:12px;color:#e2e8f5;line-height:1.5">'+
                 f'{dest.get("texto","")}</div></div>'
                 for dest in destaques
             )
@@ -2294,7 +2292,7 @@ Seja preciso, objetivo e use os dados reais fornecidos. Agenda deve ter os princ
             f'<div style="border-left:3px solid #38bdf8;padding:10px 14px;'+
             f'margin-bottom:8px;background:#0d1c38;border-radius:0 8px 8px 0">'+
             f'<div style="font-size:14px;font-weight:700;color:#e2e8f5;margin-bottom:4px">{t.get("tema","")}</div>'+
-            f'<div style="font-size:13px;color:#94a3b8;line-height:1.6">{t.get("descricao","")}</div></div>'
+            f'<div style="font-size:13px;color:#e2e8f5;line-height:1.6">{t.get("descricao","")}</div></div>'
             for t in d.get("temas_principais", [])
         )
 
@@ -2306,7 +2304,7 @@ Seja preciso, objetivo e use os dados reais fornecidos. Agenda deve ter os princ
             f'border:1px solid #1e3a6e;border-radius:7px">'+
             f'<div style="display:flex;align-items:center;gap:7px">'+
             f'<span>{ev.get("pais","🌐")}</span>'+
-            f'<span style="font-size:12px;color:#e2e8f5">{ev.get("evento","")}</span>'+
+            f'<span style="font-size:12px;color:#f1f5f9;font-weight:500">{ev.get("evento","")}</span>'+
             f'</div>'+
             f'<div style="display:flex;align-items:center;gap:5px">'+
             f'<span style="font-size:10px;color:#64748b">{ev.get("hora","")}</span>'+
@@ -2326,7 +2324,7 @@ Seja preciso, objetivo e use os dados reais fornecidos. Agenda deve ter os princ
             f'{"▲" if v.get("direcao")=="alta" else "▼" if v.get("direcao")=="baixa" else "→"}</span>'+
             f'<div>'+
             f'<div style="font-size:12px;color:#e2e8f5;font-weight:700">{v.get("ativo","")}</div>'+
-            f'<div style="font-size:11px;color:#64748b">{v.get("motivo","")}</div>'+
+            f'<div style="font-size:12px;color:#e2e8f5">{v.get("motivo","")}</div>'+
             f'</div></div>'
             for v in d.get("vieses", [])
         )
@@ -2344,7 +2342,7 @@ Seja preciso, objetivo e use os dados reais fornecidos. Agenda deve ter os princ
   <div>
     {sec("📋 Cenário Geral")}
     <div style="background:#0f2044;border:1px solid #1e3a6e;border-radius:9px;
-         padding:14px 16px;font-size:14px;color:#cbd5e1;line-height:1.75;margin-bottom:14px">
+         padding:14px 16px;font-size:14px;color:#e2e8f5;line-height:1.75;margin-bottom:14px">
       {cenario}
     </div>
     {sec("🔍 Principais Temas")}
