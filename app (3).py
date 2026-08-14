@@ -296,6 +296,64 @@ Se não souber o preço-alvo exato, estime com base no contexto de mercado e ind
         return f"Erro ao gerar análise: {str(e)}"
 
 
+@st.cache_data(ttl=600, show_spinner=False)
+def get_di_curva():
+    """
+    Busca a curva DI Futuro (contratos DI1) via Yahoo Finance.
+    Retorna lista de (vértice, taxa_atual) ordenada pelo vencimento.
+    """
+    from datetime import date as _d
+    hoje = _d.today()
+    ano  = hoje.year
+
+    # Gerar os próximos ~6 vértices anuais de janeiro
+    vertices = []
+    for y in range(ano, ano + 7):
+        sym  = f"DI1F{str(y)[2:]}.SA"   # ex: DI1F26.SA
+        nome = f"Jan/{y}"
+        vertices.append((sym, nome, y))
+
+    resultado = []
+    for sym, nome, year in vertices:
+        try:
+            tk = yf.Ticker(sym)
+            fi = tk.fast_info
+            p  = fi.last_price or fi.regular_market_price
+            if p and p > 0:
+                # DI1 é cotado em PU (100.000 / (1+taxa)^(dias/252))
+                # Mas Yahoo Finance já retorna a taxa implícita em %
+                resultado.append({"vertice": nome, "taxa": round(float(p), 2), "sym": sym, "year": year})
+        except:
+            pass
+
+    # Se Yahoo não tiver dados de DI1, tentar via BCB
+    if len(resultado) < 3:
+        resultado = []
+        try:
+            import urllib.request, json as _j
+            # BCB Expectativas de mercado - Focus (mediana Selic esperada)
+            url = "https://olinda.bcb.gov.br/olinda/servico/Expectativas/versao/v1/odata/ExpectativasMercadoAnuais?$top=20&$filter=Indicador%20eq%20%27Selic%27&$format=json&$select=Data,DataReferencia,Mediana"
+            with urllib.request.urlopen(url, timeout=10) as r:
+                dados = _j.loads(r.read())["value"]
+            # Pegar a última data de referência por ano
+            by_year = {}
+            for d in dados:
+                y = int(d["DataReferencia"])
+                if y not in by_year:
+                    by_year[y] = float(d["Mediana"])
+            for y in sorted(by_year.keys()):
+                if y >= hoje.year:
+                    resultado.append({
+                        "vertice": f"Dez/{y}",
+                        "taxa": by_year[y],
+                        "sym": "",
+                        "year": y
+                    })
+        except:
+            pass
+
+    return resultado
+
 @st.cache_data(ttl=300, show_spinner=False)
 def get_noticias():
     import re as _re
@@ -663,7 +721,7 @@ _ALERT_SYMBOLS = {
     "BBDC4.SA":"Bradesco","ITSA4.SA":"Itaúsa","ECOR3.SA":"Ecorodovias",
     "MGLU3.SA":"Magazine Luiza","EGIE3.SA":"Engie",
 }
-ALERT_THRESHOLD = 5.0  # %
+ALERT_THRESHOLD = 3.0  # %
 
 @st.cache_data(ttl=60, show_spinner=False)
 def get_alertas():
@@ -1063,6 +1121,60 @@ with tabs[7]:
                 line=dict(color=COLORS["purple"], width=2),
                 marker=dict(size=9, color=COLORS["purple"])))
         st.markdown("**Curva de Juros EUA**"); st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CFG)
+
+    # ── Curva DI Futuro ──────────────────────────────────────────
+    st.markdown("---")
+    with st.spinner("Carregando curva DI..."):
+        di_curva = get_di_curva()
+
+    if di_curva:
+        c1, c2 = st.columns([3, 2])
+        with c1:
+            xs = [d["vertice"] for d in di_curva]
+            ys = [d["taxa"]    for d in di_curva]
+            fig = mk_fig(height=300,
+                         xaxis=xax(type="category"),
+                         yaxis=yax(ticksuffix="%", title=dict(text="Taxa implícita (%a.a.)")))
+            fig.add_trace(go.Scatter(
+                x=xs, y=ys, mode="lines+markers",
+                name="DI Futuro",
+                line=dict(color=COLORS["blue"], width=2.5),
+                marker=dict(size=10, color=COLORS["blue"],
+                            line=dict(color="#0a1628", width=2)),
+                hovertemplate="<b>%{x}</b><br>%{y:.2f}% a.a.<extra>DI Futuro</extra>",
+                fill="tozeroy", fillcolor="rgba(56,189,248,0.06)"
+            ))
+            # Linha da Selic atual
+            if sel is not None and not sel.empty:
+                selic_atual = float(sel["valor"].dropna().iloc[-1])
+                fig.add_hline(
+                    y=selic_atual,
+                    line=dict(color=COLORS["red"], dash="dash", width=1.5),
+                    annotation_text=f"Selic: {selic_atual:.2f}%",
+                    annotation_font_color=COLORS["red"],
+                )
+            st.markdown("**📈 Curva DI Futuro — vértices anuais (Jan)**")
+            st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CFG)
+
+        with c2:
+            # Tabela com os vértices
+            tbl_di = [{"Vértice": d["vertice"], "Taxa (% a.a.)": f"{d['taxa']:.2f}%"} for d in di_curva]
+            if sel is not None and not sel.empty:
+                selic_atual = float(sel["valor"].dropna().iloc[-1])
+                for row in tbl_di:
+                    taxa = float(row["Taxa (% a.a.)"].replace("%", ""))
+                    diff = taxa - selic_atual
+                    row["vs Selic"] = f"{'▲' if diff >= 0 else '▼'} {abs(diff):.2f}%"
+            render_table(tbl_di)
+            st.markdown(
+                '<div style="font-size:11px;color:#64748b;margin-top:4px">'+
+                '⚠ Dados via Yahoo Finance (DI1F**.SA). '+
+                'Confirme em <a href="https://br.tradingview.com/symbols/BMFBOVESPA-DI11!/forward-curve/" '+
+                'target="_blank" style="color:#38bdf8">TradingView ↗</a></div>',
+                unsafe_allow_html=True)
+    else:
+        st.info("Dados da curva DI indisponíveis no momento. Acesse diretamente: "
+                "[TradingView — Curva DI](https://br.tradingview.com/symbols/BMFBOVESPA-DI11!/forward-curve/)")
 
     # Spread 10Y - 2Y
     if t10y is not None and t2y is not None:
@@ -2151,7 +2263,7 @@ Seja preciso, objetivo e use os dados reais fornecidos. Agenda deve ter os princ
             f'<div>'+
             f'<div style="font-size:11px;font-weight:800;text-transform:uppercase;'+
             f'letter-spacing:.08em;color:{sent_cor};margin-bottom:3px">Sentimento: {sent.upper()}</div>'+
-            f'<div style="font-size:14px;color:#e2e8f5;font-weight:500">{d.get("sentimento_desc","")}</div>'+
+            f'<div style="font-size:15px;color:#e2e8f5;font-weight:500">{d.get("sentimento_desc","")}</div>'+
             f'</div></div>',
             unsafe_allow_html=True)
 
@@ -2166,7 +2278,7 @@ Seja preciso, objetivo e use os dados reais fornecidos. Agenda deve ter os princ
                 f'<div style="font-size:9px;color:#38bdf8;font-weight:800;'+
                 f'text-transform:uppercase;letter-spacing:.07em;margin-bottom:6px">'+
                 f'{dest.get("categoria","")}</div>'+
-                f'<div style="font-size:11px;color:#94a3b8;line-height:1.5">'+
+                f'<div style="font-size:12px;color:#94a3b8;line-height:1.5">'+
                 f'{dest.get("texto","")}</div></div>'
                 for dest in destaques
             )
@@ -2181,8 +2293,8 @@ Seja preciso, objetivo e use os dados reais fornecidos. Agenda deve ter os princ
         temas_html = "".join(
             f'<div style="border-left:3px solid #38bdf8;padding:10px 14px;'+
             f'margin-bottom:8px;background:#0d1c38;border-radius:0 8px 8px 0">'+
-            f'<div style="font-size:13px;font-weight:700;color:#e2e8f5;margin-bottom:4px">{t.get("tema","")}</div>'+
-            f'<div style="font-size:12px;color:#94a3b8;line-height:1.6">{t.get("descricao","")}</div></div>'
+            f'<div style="font-size:14px;font-weight:700;color:#e2e8f5;margin-bottom:4px">{t.get("tema","")}</div>'+
+            f'<div style="font-size:13px;color:#94a3b8;line-height:1.6">{t.get("descricao","")}</div></div>'
             for t in d.get("temas_principais", [])
         )
 
@@ -2232,7 +2344,7 @@ Seja preciso, objetivo e use os dados reais fornecidos. Agenda deve ter os princ
   <div>
     {sec("📋 Cenário Geral")}
     <div style="background:#0f2044;border:1px solid #1e3a6e;border-radius:9px;
-         padding:14px 16px;font-size:13px;color:#cbd5e1;line-height:1.75;margin-bottom:14px">
+         padding:14px 16px;font-size:14px;color:#cbd5e1;line-height:1.75;margin-bottom:14px">
       {cenario}
     </div>
     {sec("🔍 Principais Temas")}
@@ -2267,7 +2379,7 @@ Seja preciso, objetivo e use os dados reais fornecidos. Agenda deve ter os princ
                         f'padding:10px 12px;text-align:center">'+
                         f'<div style="font-size:20px;font-weight:900;color:{acor};margin-bottom:4px">{arrow}</div>'+
                         f'<div style="font-size:12px;color:#e2e8f5;font-weight:700;margin-bottom:3px">{v.get("ativo","")}</div>'+
-                        f'<div style="font-size:11px;color:#64748b;line-height:1.4">{v.get("motivo","")}</div>'+
+                        f'<div style="font-size:12px;color:#64748b;line-height:1.4">{v.get("motivo","")}</div>'+
                         f'</div>',
                         unsafe_allow_html=True)
 
@@ -2278,7 +2390,7 @@ Seja preciso, objetivo e use os dados reais fornecidos. Agenda deve ter os princ
             st.markdown(
                 f'<div style="background:linear-gradient(135deg,#0f2044,#0d1a38);'+
                 f'border:1px solid #38bdf844;border-left:4px solid #38bdf8;'+
-                f'border-radius:10px;padding:16px 22px;font-size:14px;'+
+                f'border-radius:10px;padding:16px 22px;font-size:15px;'+
                 f'font-weight:600;color:#e2e8f5;line-height:1.65">💡 {resumo}</div>',
                 unsafe_allow_html=True)
     else:
