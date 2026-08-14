@@ -2330,7 +2330,7 @@ Seja preciso, objetivo e use os dados reais fornecidos. Agenda deve ter os princ
         )
 
         def sec(title):
-            return (f'<div style="font-size:10px;font-weight:800;color:#38bdf8;'+
+            return (f'<div style="font-size:11px;font-weight:800;color:#38bdf8;'+
                     f'text-transform:uppercase;letter-spacing:.08em;'+
                     f'margin-bottom:10px;padding-bottom:6px;'+
                     f'border-bottom:1px solid #1e3a6e">{title}</div>')
@@ -2359,7 +2359,7 @@ Seja preciso, objetivo e use os dados reais fornecidos. Agenda deve ter os princ
         vieses = d.get("vieses", [])
         if vieses:
             st.markdown(
-                f'<div style="font-size:10px;font-weight:800;color:#38bdf8;'+
+                f'<div style="font-size:11px;font-weight:800;color:#38bdf8;'+
                 f'text-transform:uppercase;letter-spacing:.08em;'+
                 f'margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid #1e3a6e">'+
                 f'🎯 Viés por Ativo</div>',
@@ -2377,7 +2377,7 @@ Seja preciso, objetivo e use os dados reais fornecidos. Agenda deve ter os princ
                         f'padding:10px 12px;text-align:center">'+
                         f'<div style="font-size:20px;font-weight:900;color:{acor};margin-bottom:4px">{arrow}</div>'+
                         f'<div style="font-size:12px;color:#e2e8f5;font-weight:700;margin-bottom:3px">{v.get("ativo","")}</div>'+
-                        f'<div style="font-size:12px;color:#64748b;line-height:1.4">{v.get("motivo","")}</div>'+
+                        f'<div style="font-size:12px;color:#e2e8f5b;line-height:1.4">{v.get("motivo","")}</div>'+
                         f'</div>',
                         unsafe_allow_html=True)
 
